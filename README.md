@@ -1,1 +1,830 @@
 # ktotalcare
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-의료 토탈 케어 플랫폼</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Google Translate SDK 추가 (다국어 번역 기능 연동) -->
+    <script type="text/javascript">
+        // Google 번역 위젯 초기화 함수
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'ko', // 기본 페이지 언어는 한국어 (원문)
+                // 플랫폼의 주요 타겟 국가인 영어, 일본어, 중국어 간체, 인도네시아어를 포함
+                includedLanguages: 'en,ja,zh-CN,id', 
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+                autoDisplay: false
+            }, 'google_translate_element');
+        }
+    </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom scrollbar for better look */
+        .inquiry-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .inquiry-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
+        .inquiry-list::-webkit-scrollbar-track {
+            background-color: #f1f5f9;
+        }
+        /* Hide all view containers by default, show only the active one */
+        .view-container {
+            display: none;
+        }
+        /* Google Translate 위젯 스타일 조정 */
+        #google_translate_element {
+            line-height: 1;
+        }
+        /* Google Translate 드롭다운 버튼 스타일링 */
+        #google_translate_element .goog-te-gadget-simple {
+            font-size: 13px !important;
+            border: 1px solid #d1d5db !important; /* gray-300 */
+            border-radius: 9999px !important; /* rounded-full */
+            padding: 4px 10px !important;
+            background-color: #f3f4f6 !important; /* gray-100 */
+            color: #4b5563 !important; /* gray-600 */
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header & Navigation -->
+    <header class="bg-white shadow-md p-4 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap">
+            <h1 id="app-title" class="text-2xl font-bold text-blue-600 flex items-center mb-2 md:mb-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                K-의료 토탈 케어 플랫폼
+            </h1>
+            
+            <div class="flex items-center space-x-4 flex-wrap mt-2 md:mt-0">
+                <!-- Google Translate Widget Container: 여기서 언어 드롭다운 메뉴가 표시됩니다. -->
+                <div id="google_translate_element" class="text-sm"></div>
+
+                <!-- L10n Toggle Button (플랫폼 자체 콘텐츠 언어 전환) -->
+                <button id="lang-toggle-button" class="text-sm font-semibold rounded-full bg-gray-100 text-gray-700 px-3 py-1 hover:bg-gray-200 transition duration-150">
+                    EN
+                </button>
+                <div id="auth-status" class="text-xs text-gray-600 rounded-full bg-blue-50 px-3 py-1">
+                    인증 중...
+                </div>
+            </div>
+            
+            <!-- Navigation Links -->
+            <nav class="w-full mt-3 flex justify-start space-x-2 sm:space-x-4 border-t pt-2">
+                <button id="nav-landing" data-view="landing" class="nav-button text-sm font-medium px-3 py-1 rounded-lg bg-blue-600 text-white transition duration-150">홈</button>
+                <button id="nav-company" data-view="company" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">회사 소개</button>
+                <button id="nav-partners" data-view="partners" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">제휴 병원</button>
+                <button id="nav-inquiry" data-view="inquiry" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">1:1 상담</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
+        
+        <!-- ============================================== -->
+        <!-- 1. Landing Page View -->
+        <!-- ============================================== -->
+        <div id="landing-view" class="view-container bg-white p-8 rounded-xl shadow-xl text-center">
+            <h2 id="landing-title" class="text-3xl md:text-4xl font-extrabold text-blue-700 mb-4">
+                K-의료 관광의 새로운 기준
+            </h2>
+            <p id="landing-subtitle" class="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
+                대한민국의 우수한 의료 기술과 토탈 케어 서비스를 결합하여 전 세계 환자들에게 최고의 치료 경험을 선사합니다.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.238a4.5 4.5 0 011.13 6.591l-3.535 3.536a1.5 1.5 0 01-2.122 0l-3.535-3.536m-2.122-2.121a4.5 4.5 0 010-6.364m.001-6.364a4.5 4.5 0 016.364 0L12 5.636l1.318-1.318a4.5 4.5 0 016.364 0z" /></svg>
+                    <h3 id="landing-card1-title" class="font-bold text-gray-800 mb-2">최고 수준의 의료진</h3>
+                    <p id="landing-card1-text" class="text-sm text-gray-500">
+                        대학병원급 전문의와 최신 장비를 통한 정확하고 안전한 진료.
+                    </p>
+                </div>
+                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    <h3 id="landing-card2-title" class="font-bold text-gray-800 mb-2">맞춤형 토탈 케어</h3>
+                    <p id="landing-card2-text" class="text-sm text-gray-500">
+                        출국 전 상담부터 귀국 후 관리까지, 전담 코디네이터 배정.
+                    </p>
+                </div>
+                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.477 3-10S13.657 3 12 3s-3 4.477-3 10 1.343 10 3 10z" /></svg>
+                    <h3 id="landing-card3-title" class="font-bold text-gray-800 mb-2">간편한 IT 플랫폼</h3>
+                    <p id="landing-card3-text" class="text-sm text-gray-500">
+                        모바일 앱을 통해 모든 예약, 상담, 결제 과정을 손쉽게 처리.
+                    </p>
+                </div>
+            </div>
+            <button onclick="changeView('inquiry')" id="landing-cta" class="mt-8 bg-blue-600 text-white text-lg py-3 px-8 rounded-full hover:bg-blue-700 transition duration-150 shadow-lg">
+                지금 1:1 상담 신청하기
+            </button>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- 2. Company Intro View -->
+        <!-- ============================================== -->
+        <div id="company-view" class="view-container bg-white p-8 rounded-xl shadow-xl">
+            <h2 id="company-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
+                외국인환자유치 전문기업 ㈜태린메드
+            </h2>
+            <div class="space-y-6 text-gray-700">
+                <p id="company-section1-title" class="text-xl font-semibold text-blue-600">사업 개요 및 비전</p>
+                <p id="company-section1-text" class="text-sm leading-relaxed">
+                    ㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.
+                </p>
+
+                <p id="company-section2-title" class="text-xl font-semibold text-blue-600">주요 타겟 시장</p>
+                <ul id="company-section2-list" class="list-disc list-inside space-y-1 text-sm">
+                    <li>인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보</li>
+                    <li>베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장</li>
+                    <li>중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화</li>
+                    <li>미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출</li>
+                </ul>
+
+                <p id="company-section3-title" class="text-xl font-semibold text-blue-600">주요 서비스</p>
+                <p id="company-section3-text" class="text-sm leading-relaxed">
+                    IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 '토탈 케어 서비스'를 제공합니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- 3. Partner Hospitals View -->
+        <!-- ============================================== -->
+        <div id="partners-view" class="view-container bg-white p-8 rounded-xl shadow-xl">
+            <h2 id="partners-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
+                제휴 병원 및 전문 분야
+            </h2>
+            <p id="partners-description" class="text-sm text-gray-500 mb-6">
+                ㈜태린메드는 각 분야별 최고의 전문성을 갖춘 국내 유수의 병원 및 클리닉과 공식 제휴를 맺고 있습니다.
+            </p>
+
+            <div id="partner-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Partner Cards will be inserted here by JS -->
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- 4. Inquiry View (Original Content) -->
+        <!-- ============================================== -->
+        <div id="inquiry-view" class="view-container">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Inquiry Form Section -->
+                <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-fit">
+                    <h2 id="inquiry-form-title" class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">1:1 상담 신청 (Inquiry)</h2>
+                    <p id="inquiry-form-description" class="text-sm text-gray-500 mb-4">
+                        인도네시아, 미국, 중화권 등 전 세계 환자들을 위한 상담 창구입니다. 원하는 진료 분야를 선택하고 문의를 남겨주세요.
+                    </p>
+
+                    <form id="inquiry-form" class="space-y-4">
+                        <div>
+                            <label id="label-name" for="name" class="block text-sm font-medium text-gray-700">이름 (Name)</label>
+                            <input type="text" id="name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                        </div>
+
+                        <div>
+                            <label id="label-country" for="country" class="block text-sm font-medium text-gray-700">국가/지역 (Country)</label>
+                            <select id="country" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white">
+                                <option value="">-- 선택 --</option>
+                                <option value="Indonesia">인도네시아</option>
+                                <option value="Vietnam">베트남</option>
+                                <option value="Thailand">태국</option>
+                                <option value="China">중국</option>
+                                <option value="Taiwan">대만</option>
+                                <option value="USA">미국</option>
+                                <option value="Other">기타</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label id="label-treatment" for="treatment" class="block text-sm font-medium text-gray-700">희망 진료 분야 (Treatment Type)</label>
+                            <select id="treatment" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white">
+                                <option value="">-- 선택 --</option>
+                                <option value="Beauty/PlasticSurgery">미용/성형외과</option>
+                                <option value="Dermatology">피부과</option>
+                                <option value="HealthCheckup">정밀 건강 검진</option>
+                                <option value="SeriousIllness">중증 질환 (암, 척추 등)</option>
+                                <option value="Dental/Ophthalmology">치과/안과</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label id="label-message" for="message" class="block text-sm font-medium text-gray-700">문의 내용 (Message)</label>
+                            <textarea id="message" rows="4" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"></textarea>
+                        </div>
+
+                        <button type="submit" id="submit-button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-md">
+                            문의 신청하기
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Inquiry List / Status Section -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+                    <h2 id="inquiry-list-title" class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2 flex justify-between items-center">
+                        실시간 문의 현황 (Live Inquiry List)
+                        <span id="loading-indicator" class="text-xs text-gray-500 hidden">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span id="loading-indicator-text-target">데이터 로딩 중...</span>
+                        </span>
+                    </h2>
+                    
+                    <div id="inquiry-list" class="space-y-3 inquiry-list max-h-[600px] overflow-y-auto pr-2">
+                        <!-- Inquiry items will be inserted here -->
+                        <p class="text-gray-500 text-sm p-4 bg-gray-50 rounded-lg" id="no-data-message">
+                            아직 접수된 문의가 없습니다. 새로운 문의를 등록해 보세요!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast/Modal for Messages -->
+        <div id="toast-message" class="fixed bottom-5 right-5 bg-green-500 text-white p-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-0" role="alert" style="pointer-events: none;">
+            <!-- Message content -->
+        </div>
+
+    </main>
+
+    <!-- Firebase SDKs & Core Logic -->
+    <script type="module">
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            serverTimestamp, 
+            onSnapshot,
+            query,
+            // Use client-side sorting instead of orderBy to avoid index errors in Firestore
+            // orderBy 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Instances
+        let app = null;
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let isAuthReady = false;
+        let currentLang = 'ko'; // Default language is Korean
+
+        // ==============================================
+        // 1. Localization (L10n) Data
+        // ==============================================
+        const L10n = {
+            'ko': {
+                // Header & Nav
+                'app-title': 'K-의료 토탈 케어 플랫폼',
+                'nav-landing': '홈',
+                'nav-company': '회사 소개',
+                'nav-partners': '제휴 병원',
+                'nav-inquiry': '1:1 상담',
+                'auth-status-loading': '인증 중...',
+                'auth-status-waiting': '인증 대기 중...',
+                'auth-status-failed': '로그인 실패',
+                'auth-status-error': '초기화 오류',
+                
+                // Landing View
+                'landing-title': 'K-의료 관광의 새로운 기준',
+                'landing-subtitle': '대한민국의 우수한 의료 기술과 토탈 케어 서비스를 결합하여 전 세계 환자들에게 최고의 치료 경험을 선사합니다.',
+                'landing-card1-title': '최고 수준의 의료진',
+                'landing-card1-text': '대학병원급 전문의와 최신 장비를 통한 정확하고 안전한 진료.',
+                'landing-card2-title': '맞춤형 토탈 케어',
+                'landing-card2-text': '출국 전 상담부터 귀국 후 관리까지, 전담 코디네이터 배정.',
+                'landing-card3-title': '간편한 IT 플랫폼',
+                'landing-card3-text': '모바일 앱을 통해 모든 예약, 상담, 결제 과정을 손쉽게 처리.',
+                'landing-cta': '지금 1:1 상담 신청하기',
+                
+                // Company View
+                'company-title': '외국인환자유치 전문기업 ㈜태린메드',
+                'company-section1-title': '사업 개요 및 비전',
+                'company-section1-text': '㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.',
+                'company-section2-title': '주요 타겟 시장',
+                'company-section2-list': [
+                    '인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보',
+                    '베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장',
+                    '중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화',
+                    '미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출'
+                ],
+                'company-section3-title': '주요 서비스',
+                'company-section3-text': 'IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 \'토탈 케어 서비스\'를 제공합니다.',
+
+                // Partners View
+                'partners-title': '제휴 병원 및 전문 분야',
+                'partners-description': '㈜태린메드는 각 분야별 최고의 전문성을 갖춘 국내 유수의 병원 및 클리닉과 공식 제휴를 맺고 있습니다.',
+                'partners-mock-data': [
+                    { name: '서울 미모 성형외과', field: '미용/성형외과', specialty: '안면 윤곽 및 가슴 성형 전문' },
+                    { name: '강남 에이스 피부과', field: '피부과', specialty: '레이저 리프팅, 색소 질환 집중 치료' },
+                    { name: '한국 종합 건강 검진센터', field: '정밀 건강 검진', specialty: '프리미엄 VIP 정밀 검진 프로그램' },
+                    { name: '새 생명 척추 병원', field: '중증 질환 (암, 척추 등)', specialty: '비수술 척추 교정 및 재활' },
+                    { name: '글로벌 아이 치과', field: '치과/안과', specialty: '치아 교정 및 라식/라섹' },
+                ],
+                'field-label': '분야',
+                'specialty-label': '특화 진료',
+
+                // Inquiry View
+                'inquiry-form-title': '1:1 상담 신청',
+                'inquiry-form-description': '인도네시아, 미국, 중화권 등 전 세계 환자들을 위한 상담 창구입니다. 원하는 진료 분야를 선택하고 문의를 남겨주세요.',
+                'label-name': '이름',
+                'label-country': '국가/지역',
+                'label-treatment': '희망 진료 분야',
+                'label-message': '문의 내용',
+                'submit-button': '문의 신청하기',
+                'inquiry-list-title': '실시간 문의 현황',
+                'loading-indicator-text': '데이터 로딩 중...',
+                'no-data-message': '아직 접수된 문의가 없습니다. 새로운 문의를 등록해 보세요!',
+                'toast-success': '문의 신청이 완료되었습니다. 곧 담당자가 연락드릴 예정입니다.',
+                'toast-fail': '문의 신청에 실패했습니다. 시스템 오류를 확인해 주세요.',
+                'toast-empty': '모든 항목을 입력해 주세요.',
+                'toast-system-ready': '시스템 준비 중입니다. 잠시 후 다시 시도해 주세요.',
+                'inquiry-user-label': '(나의 문의)',
+                'inquiry-date-default': '날짜 미정',
+                'inquiry-submit-loading': '신청 중...',
+                'inquiry-submit-button-ready': '문의 신청하기',
+
+            },
+            'en': {
+                // Header & Nav
+                'app-title': 'K-Medical Total Care Platform',
+                'nav-landing': 'Home',
+                'nav-company': 'About Us',
+                'nav-partners': 'Partner Hospitals',
+                'nav-inquiry': '1:1 Inquiry',
+                'auth-status-loading': 'Authenticating...',
+                'auth-status-waiting': 'Auth Pending...',
+                'auth-status-failed': 'Login Failed',
+                'auth-status-error': 'Init Error',
+
+                // Landing View
+                'landing-title': 'New Standard of K-Medical Tourism',
+                'landing-subtitle': 'We combine Korea\'s superior medical technology with total care services to provide the best treatment experience for patients worldwide.',
+                'landing-card1-title': 'Top-Tier Medical Staff',
+                'landing-card1-text': 'Accurate and safe diagnosis by university hospital-level specialists and cutting-edge equipment.',
+                'landing-card2-title': 'Customized Total Care',
+                'landing-card2-text': 'Dedicated coordinator assignment from pre-departure consultation to post-return care.',
+                'landing-card3-title': 'Easy-to-Use IT Platform',
+                'landing-card3-text': 'Handle all reservations, consultations, and payment processes easily through the mobile app.',
+                'landing-cta': 'Apply for 1:1 Consultation Now',
+                
+                // Company View
+                'company-title': 'Taein Med: Specialized Medical Tourism Agency',
+                'company-section1-title': 'Business Overview and Vision',
+                'company-section1-text': 'Taein Med is a specialized legal entity established for attracting and managing foreign patients. Through joint projects with LCS Partners and Unicore Indonesia, we act as a bridge connecting patients across Asia to excellent domestic medical services. Our vision is to lead the medical tourism market with a systematic, IT platform-based total care system.',
+                'company-section2-title': 'Key Target Markets',
+                'company-section2-list': [
+                    'Indonesia: Market focus and securing base through local entity (PT UNICORE BIZPAY INDONESIA)',
+                    'Vietnam/Thailand: Business expansion through partnerships with local agencies and travel companies',
+                    'China: Market entry and stabilization through strategic alliances with large travel agencies',
+                    'USA: Long-term expansion of business scope to enter the global market'
+                ],
+                'company-section3-title': 'Key Services',
+                'company-section3-text': 'We provide a \'Total Care Service\' that covers the patient\'s entire journey, including real-time consultation via IT platform, hospital reservation/schedule management, interpretation/accommodation/transportation linkage services.',
+
+                // Partners View
+                'partners-title': 'Partner Hospitals and Specialties',
+                'partners-description': 'Taein Med is officially partnered with leading domestic hospitals and clinics that possess the highest level of expertise in each field.',
+                'partners-mock-data': [
+                    { name: 'Seoul Mimo Plastic Surgery', field: 'Beauty/Plastic Surgery', specialty: 'Facial contouring and breast augmentation specialist' },
+                    { name: 'Gangnam Ace Dermatology', field: 'Dermatology', specialty: 'Laser lifting and intensive pigmentary disorder treatment' },
+                    { name: 'Korea Comprehensive Health Checkup Center', field: 'Health Checkup', specialty: 'Premium VIP detailed examination program' },
+                    { name: 'New Life Spine Hospital', field: 'Serious Illness (Cancer, Spine, etc.)', specialty: 'Non-surgical spinal correction and rehabilitation' },
+                    { name: 'Global Eye Dental Clinic', field: 'Dental/Ophthalmology', specialty: 'Dental orthodontics and LASIK/LASEK' },
+                ],
+                'field-label': 'Field',
+                'specialty-label': 'Specialty',
+                
+                // Inquiry View
+                'inquiry-form-title': '1:1 Consultation Request',
+                'inquiry-form-description': 'This is a consultation channel for patients worldwide, including Indonesia, the US, and Greater China. Please select your desired field of treatment and leave your inquiry.',
+                'label-name': 'Name',
+                'label-country': 'Country/Region',
+                'label-treatment': 'Desired Treatment Field',
+                'label-message': 'Message',
+                'submit-button': 'Submit Inquiry',
+                'inquiry-list-title': 'Live Inquiry List',
+                'loading-indicator-text': 'Data Loading...',
+                'no-data-message': 'No inquiries have been submitted yet. Be the first to post!',
+                'toast-success': 'Your inquiry has been submitted. A coordinator will contact you shortly.',
+                'toast-fail': 'Failed to submit inquiry. Please check for system errors.',
+                'toast-empty': 'Please fill in all fields.',
+                'toast-system-ready': 'System is preparing. Please try again shortly.',
+                'inquiry-user-label': '(My Inquiry)',
+                'inquiry-date-default': 'Date Undetermined',
+                'inquiry-submit-loading': 'Submitting...',
+                'inquiry-submit-button-ready': 'Submit Inquiry',
+
+            }
+        };
+
+        // ==============================================
+        // 2. UI Elements
+        // ==============================================
+        const authStatusEl = document.getElementById('auth-status');
+        const inquiryFormEl = document.getElementById('inquiry-form');
+        const inquiryListEl = document.getElementById('inquiry-list');
+        const submitButton = document.getElementById('submit-button');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const loadingIndicatorTextTarget = document.getElementById('loading-indicator-text-target'); 
+        const noDataMessage = document.getElementById('no-data-message');
+        const toastEl = document.getElementById('toast-message');
+        const langToggleButton = document.getElementById('lang-toggle-button');
+        const navButtons = document.querySelectorAll('.nav-button');
+        const partnerListContainer = document.getElementById('partner-list-container');
+        const viewContainers = document.querySelectorAll('.view-container');
+        
+
+        // ==============================================
+        // 3. Language & View Management Functions
+        // ==============================================
+
+        /**
+         * Update all static text in the UI based on the current language (L10n).
+         * NOTE: This function handles L10n (hardcoded localization) and is independent of Google Translate.
+         */
+        function updateUIforLanguage() {
+            const langData = L10n[currentLang];
+            
+            // Header
+            document.getElementById('app-title').textContent = langData['app-title'];
+            langToggleButton.textContent = currentLang === 'ko' ? 'EN' : 'KO';
+
+            // Navigation
+            navButtons.forEach(button => {
+                const viewName = button.getAttribute('data-view');
+                button.textContent = langData[`nav-${viewName}`];
+            });
+
+            // Landing View
+            document.getElementById('landing-title').textContent = langData['landing-title'];
+            document.getElementById('landing-subtitle').textContent = langData['landing-subtitle'];
+            document.getElementById('landing-card1-title').textContent = langData['landing-card1-title'];
+            document.getElementById('landing-card1-text').textContent = langData['landing-card1-text'];
+            document.getElementById('landing-card2-title').textContent = langData['landing-card2-title'];
+            document.getElementById('landing-card2-text').textContent = langData['landing-card2-text'];
+            document.getElementById('landing-card3-title').textContent = langData['landing-card3-title'];
+            document.getElementById('landing-card3-text').textContent = langData['landing-card3-text'];
+            document.getElementById('landing-cta').textContent = langData['landing-cta'];
+
+            // Company View
+            document.getElementById('company-title').textContent = langData['company-title'];
+            document.getElementById('company-section1-title').textContent = langData['company-section1-title'];
+            document.getElementById('company-section1-text').textContent = langData['company-section1-text'];
+            document.getElementById('company-section2-title').textContent = langData['company-section2-title'];
+            // Update list items for company view
+            const ulEl = document.getElementById('company-section2-list');
+            ulEl.innerHTML = langData['company-section2-list'].map(item => `<li>${item}</li>`).join('');
+            document.getElementById('company-section3-title').textContent = langData['company-section3-title'];
+            document.getElementById('company-section3-text').textContent = langData['company-section3-text'];
+
+            // Partners View
+            document.getElementById('partners-title').textContent = langData['partners-title'];
+            document.getElementById('partners-description').textContent = langData['partners-description'];
+            renderPartnerList(); // Re-render partner list to localize mock data
+
+            // Inquiry View
+            document.getElementById('inquiry-form-title').textContent = langData['inquiry-form-title'] + (currentLang === 'en' ? ' (Inquiry)' : ' (상담)');
+            document.getElementById('inquiry-form-description').textContent = langData['inquiry-form-description'];
+            document.getElementById('label-name').textContent = langData['label-name'] + (currentLang === 'en' ? ' (Name)' : '');
+            document.getElementById('label-country').textContent = langData['label-country'] + (currentLang === 'en' ? ' (Country)' : '');
+            document.getElementById('label-treatment').textContent = langData['label-treatment'] + (currentLang === 'en' ? ' (Treatment Type)' : '');
+            document.getElementById('label-message').textContent = langData['label-message'] + (currentLang === 'en' ? ' (Message)' : '');
+            submitButton.textContent = submitButton.disabled ? langData['inquiry-submit-loading'] : langData['inquiry-submit-button-ready'];
+            document.getElementById('inquiry-list-title').textContent = langData['inquiry-list-title'] + (currentLang === 'en' ? ' (Live Inquiry List)' : ' (현황)');
+            
+            if (loadingIndicatorTextTarget) {
+                loadingIndicatorTextTarget.textContent = langData['loading-indicator-text'];
+            }
+            
+            noDataMessage.textContent = langData['no-data-message'];
+        }
+
+        /**
+         * Change the active view displayed in the main section.
+         * @param {string} viewId - The ID of the view container (e.g., 'landing', 'inquiry').
+         */
+        function changeView(viewId) {
+            viewContainers.forEach(container => {
+                container.style.display = 'none';
+            });
+            document.getElementById(viewId + '-view').style.display = 'block';
+
+            navButtons.forEach(button => {
+                const isActive = button.getAttribute('data-view') === viewId;
+                if (isActive) {
+                    button.classList.add('bg-blue-600', 'text-white');
+                    button.classList.remove('text-gray-700', 'hover:bg-gray-100');
+                } else {
+                    button.classList.remove('bg-blue-600', 'text-white');
+                    button.classList.add('text-gray-700', 'hover:bg-gray-100');
+                }
+            });
+            
+            // Re-render inquiries when switching to the inquiry view
+            if (viewId === 'inquiry' && isAuthReady) {
+                loadInquiries();
+            }
+        }
+        
+        /**
+         * Toggles the localized content language between Korean and English.
+         */
+        function toggleLanguage() {
+            currentLang = currentLang === 'ko' ? 'en' : 'ko';
+            updateUIforLanguage();
+        }
+
+        // ==============================================
+        // 4. Partner List Mock Renderer
+        // ==============================================
+        function renderPartnerList() {
+            const partners = L10n[currentLang]['partners-mock-data'];
+            const fieldLabel = L10n[currentLang]['field-label'];
+            const specialtyLabel = L10n[currentLang]['specialty-label'];
+            
+            let html = partners.map(partner => `
+                <div class="p-5 border border-gray-100 rounded-xl shadow-md bg-white hover:shadow-lg transition duration-200">
+                    <h3 class="text-lg font-bold text-blue-600 mb-2">${partner.name}</h3>
+                    <div class="space-y-1 text-sm">
+                        <p class="text-gray-600"><span class="font-medium text-gray-800">${fieldLabel}:</span> ${partner.field}</p>
+                        <p class="text-gray-500"><span class="font-medium text-gray-800">${specialtyLabel}:</span> ${partner.specialty}</p>
+                    </div>
+                </div>
+            `).join('');
+            partnerListContainer.innerHTML = html;
+        }
+
+        // ==============================================
+        // 5. Firebase & Core Logic (Modified)
+        // ==============================================
+        
+        /**
+         * Custom toast message display (replacing alert/confirm)
+         * @param {string} messageKey - The key of the message to display from L10n.
+         * @param {string} type - 'success' or 'error'.
+         */
+        function showToast(messageKey, type = 'success') {
+            const message = L10n[currentLang][messageKey] || messageKey;
+            toastEl.textContent = message;
+            toastEl.className = `fixed bottom-5 right-5 p-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-100`;
+            
+            if (type === 'success') {
+                toastEl.classList.add('bg-green-500', 'text-white');
+                toastEl.classList.remove('bg-red-600');
+            } else if (type === 'error') {
+                toastEl.classList.add('bg-red-600', 'text-white');
+                toastEl.classList.remove('bg-green-500');
+            }
+
+            setTimeout(() => {
+                toastEl.classList.remove('opacity-100');
+                toastEl.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        /**
+         * Firebase 초기화 및 인증 처리
+         */
+        async function initFirebase() {
+            if (Object.keys(firebaseConfig).length === 0) {
+                authStatusEl.textContent = L10n[currentLang]['auth-status-error'];
+                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
+                console.error("Firebase config is empty. Cannot initialize.");
+                return;
+            }
+
+            try {
+                setLogLevel('error'); // Reduced logging level
+                
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                authStatusEl.textContent = L10n[currentLang]['auth-status-waiting'];
+
+                // 인증 상태 변경 리스너 설정
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        authStatusEl.textContent = `User ID: ${userId}`;
+                        authStatusEl.classList.replace('bg-blue-50', 'bg-green-100');
+                        isAuthReady = true;
+                        
+                        // Load inquiries only if on the inquiry view
+                        if (document.getElementById('inquiry-view').style.display === 'block') {
+                            loadInquiries();
+                        }
+                    } else {
+                        // 인증 토큰이 없는 경우 익명 로그인 시도
+                        if (initialAuthToken) {
+                            // Custom token login
+                            signInWithCustomToken(auth, initialAuthToken).catch(error => {
+                                console.error("Custom token sign-in failed:", error);
+                                signInAnonymously(auth).catch(err => {
+                                    console.error("Anonymous sign-in failed:", err);
+                                    authStatusEl.textContent = L10n[currentLang]['auth-status-failed'];
+                                    authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
+                                });
+                            });
+                        } else {
+                            // Anonymous login
+                            signInAnonymously(auth).catch(error => {
+                                console.error("Anonymous sign-in failed:", error);
+                                authStatusEl.textContent = L10n[currentLang]['auth-status-failed'];
+                                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
+                            });
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                showToast('auth-status-error', 'error');
+                authStatusEl.textContent = L10n[currentLang]['auth-status-error'];
+                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
+            }
+        }
+
+        /**
+         * 문의 사항을 Firestore에 저장
+         */
+        async function submitInquiry(event) {
+            event.preventDefault();
+
+            if (!isAuthReady || !userId || !db) {
+                showToast('toast-system-ready', 'error');
+                return;
+            }
+
+            const name = document.getElementById('name').value;
+            const country = document.getElementById('country').value;
+            const treatment = document.getElementById('treatment').value;
+            const message = document.getElementById('message').value;
+
+            if (!name || !country || !treatment || !message) {
+                showToast('toast-empty', 'error');
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.textContent = L10n[currentLang]['inquiry-submit-loading'];
+
+            // Firestore 보안 규칙에 따라 /artifacts/{appId}/public/data/inquiries 경로 사용
+            const inquiryCollectionPath = `artifacts/${appId}/public/data/inquiries`;
+
+            try {
+                await addDoc(collection(db, inquiryCollectionPath), {
+                    userId: userId,
+                    name: name,
+                    country: country,
+                    treatment: treatment,
+                    message: message,
+                    timestamp: serverTimestamp()
+                });
+
+                showToast('toast-success');
+                inquiryFormEl.reset(); // 폼 초기화
+
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showToast('toast-fail', 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = L10n[currentLang]['inquiry-submit-button-ready'];
+            }
+        }
+
+        /**
+         * 실시간 문의 리스트 로드 및 표시 (onSnapshot 사용)
+         */
+        function loadInquiries() {
+            if (!isAuthReady || !db) return;
+
+            // Firestore 보안 규칙에 따라 /artifacts/{appId}/public/data/inquiries 경로 사용
+            const inquiryCollectionPath = `artifacts/${appId}/public/data/inquiries`;
+            
+            // NOTE: orderBy를 사용하면 index 오류가 발생할 수 있으므로, 일단은 client-side sorting을 위해 
+            // 쿼리에서 orderBy를 제거하고 모든 문서를 가져옵니다.
+            const q = query(collection(db, inquiryCollectionPath)); 
+            
+            loadingIndicator.classList.remove('hidden');
+
+            onSnapshot(q, (snapshot) => {
+                loadingIndicator.classList.add('hidden');
+                const langData = L10n[currentLang];
+                
+                // 1. Snapshot 데이터를 배열로 변환 및 클라이언트 측에서 시간순으로 정렬
+                let inquiries = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    // Firestore timestamp는 toDate()로 변환 가능
+                    const timestamp = data.timestamp ? data.timestamp.toDate().getTime() : 0;
+                    inquiries.push({ ...data, id: doc.id, timestamp: timestamp, firestoreDate: data.timestamp });
+                });
+
+                // 내림차순 (최신순) 정렬: timestamp가 클수록 최신
+                inquiries.sort((a, b) => b.timestamp - a.timestamp);
+
+                // 2. HTML 렌더링
+                let html = '';
+                inquiries.forEach((data) => {
+                    // Date localization depends on the user's browser locale, but we can localize the other texts.
+                    const date = data.firestoreDate ? new Date(data.firestoreDate.toDate()).toLocaleDateString(currentLang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : langData['inquiry-date-default'];
+                    
+                    // Highlight the item if it was submitted by the current user
+                    const isCurrentUser = data.userId === userId;
+                    const cardClass = isCurrentUser ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200';
+                    const userLabel = isCurrentUser ? `<span class="text-blue-600 font-bold ml-1">${langData['inquiry-user-label']}</span>` : '';
+
+                    // Simple mock localization for fields (in a real app, data itself would be stored in the patient's language)
+                    const countryDisplay = currentLang === 'ko' ? data.country : data.country.replace('인도네시아', 'Indonesia').replace('베트남', 'Vietnam').replace('중국', 'China').replace('미국', 'USA').replace('기타', 'Other');
+                    const treatmentDisplay = currentLang === 'ko' ? data.treatment : data.treatment.replace('미용/성형외과', 'Plastic Surgery').replace('피부과', 'Dermatology').replace('정밀 건강 검진', 'Health Checkup').replace('중증 질환 (암, 척추 등)', 'Serious Illness').replace('치과/안과', 'Dental/Ophthalmology');
+
+                    html += `
+                        <div class="p-4 border rounded-lg shadow-sm ${cardClass}">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="font-semibold text-gray-800">${data.name} (${countryDisplay}) ${userLabel}</span>
+                                <span class="text-xs text-gray-500">${date}</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="inline-block px-2 py-0.5 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">${treatmentDisplay}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 overflow-hidden break-words whitespace-pre-wrap">${data.message}</p>
+                            <div class="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
+                                User ID: ${data.userId.substring(0, 8)}...
+                            </div>
+                        </div>
+                    `;
+                });
+
+                inquiryListEl.innerHTML = html;
+
+                if (snapshot.empty) {
+                    noDataMessage.classList.remove('hidden');
+                } else {
+                    noDataMessage.classList.add('hidden');
+                }
+            }, (error) => {
+                console.error("Error listening to inquiries:", error);
+                showToast('toast-fail', 'error');
+            });
+        }
+
+        // ==============================================
+        // 6. Initialization & Event Listeners
+        // ==============================================
+
+        window.addEventListener('load', () => {
+            initFirebase();
+            changeView('landing'); // Start on the landing page
+            updateUIforLanguage(); // Initial text setup
+            
+            // Set up Navigation listeners
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const viewId = button.getAttribute('data-view');
+                    changeView(viewId);
+                });
+            });
+
+            // Set up Language Toggle listener
+            langToggleButton.addEventListener('click', toggleLanguage);
+        });
+
+        inquiryFormEl.addEventListener('submit', submitInquiry);
+        
+        // Expose function for external use (e.g., in HTML onclick)
+        window.changeView = changeView;
+    </script>
+</body>
+</html>
