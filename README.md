@@ -1,5 +1,4 @@
 # ktotalcare
-<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -264,7 +263,7 @@
         const PLATFORM_ADDRESS = "https://chespro-director.github.io/ktotalcare/";
         
         // Define all supported languages for easy iteration
-        const SUPPORTED_LANGS = ['ko', 'en', 'zh', 'ja', 'id', 'th', 'vi'];
+        const SUPPORTED_LANGS = ['ko', 'en', 'zh', 'id', 'th', 'vi', 'ja'];
 
         const translations = {
             'ko': {
