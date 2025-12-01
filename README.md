@@ -1,829 +1,953 @@
 # ktotalcare
+<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K-의료 토탈 케어 플랫폼</title>
-    <!-- Tailwind CSS CDN -->
+    <title>K-TOTAL CARE 플랫폼</title>
+    <!-- Tailwind CSS (Tailwind JIT CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Google Translate SDK 추가 (다국어 번역 기능 연동) -->
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Styles for Aesthetics and Responsiveness */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f8;
+            color: #1f2937;
+        }
+        .container-fluid {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        .header-bg {
+            background-color: #0b2447; /* Deep Blue - K-Medical Professionalism */
+        }
+        .cta-button {
+            transition: all 0.2s;
+            background-color: #ff6b6b; /* Bright Coral - Attention-grabbing CTA */
+        }
+        .cta-button:hover {
+            background-color: #ff4757;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        /* Custom Scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Style for the partnership section specific styling */
+        .partner-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .partner-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #e5e7eb;
+        }
+        .partner-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Firebase SDK Imports (MUST be placed before your script) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ktotalcare-default-app-id';
+        let firebaseConfig = null;
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch (e) {
+            console.error("Firebase config parsing error:", e);
+        }
+
+        let app, db, auth, userId = null;
+        let isListenerSetup = false; // 리스너 중복 방지를 위한 플래그
+
+        // Set Firebase Debug Log Level (Optional but helpful)
+        setLogLevel('Debug'); // 디버그 로깅 활성화
+
+        /**
+         * Initialize Firebase and Authenticate User
+         */
+        async function initializeFirebaseAndAuth() {
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase configuration is missing or invalid. Data storage will not work.");
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Authentication Listener: 리스너는 인증 완료된 user 객체가 있을 때만 데이터를 로드하도록 엄격하게 처리합니다.
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        // 인증된 사용자가 있을 때만 userId 설정
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = userId;
+                        console.log("Authenticated with UID:", userId);
+                        
+                        // 인증 완료 후, 채팅 리스너 설정
+                        setupChatListener();
+                    } else {
+                        // 미인증 상태 또는 초기 로딩 중. Firestore 접근 시도하지 않음.
+                        userId = null;
+                        console.log("Authentication state change: User is not signed in or authentication is in progress.");
+                        
+                        // 언어 스크립트가 로드되었는지 확인하고 로딩 메시지 표시
+                        let loadingMessage = "인증 중입니다. 잠시만 기다려주세요.";
+                        if(typeof window.getL10nText === 'function') {
+                            loadingMessage = window.getL10nText('loading_auth_message');
+                        }
+                        document.getElementById('chat-messages').innerHTML = `<div class="p-4 text-center text-gray-500">${loadingMessage}</div>`;
+                    }
+                });
+
+                // Sign in using custom token or anonymously
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // Fallback to anonymous sign-in if token is unavailable
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase Initialization or Authentication failed:", error);
+                document.getElementById('chat-messages').innerHTML = `<div class="p-4 text-center text-red-500">데이터베이스 연결 또는 인증 오류: ${error.message}</div>`;
+            }
+        }
+
+        /**
+         * Get the Firestore collection path for the 1:1 chat
+         */
+        function getChatCollectionPath(currentUserId) {
+            // Private data storage path: /artifacts/{appId}/users/{userId}/{collectionName}
+            return `artifacts/${appId}/users/${currentUserId}/consultations`;
+        }
+
+        /**
+         * Setup real-time listener for chat messages
+         */
+        function setupChatListener() {
+            // 리스너가 이미 설정되었거나 인증/DB 준비가 안된 경우 실행하지 않음 (userId가 null이면 미인증 상태)
+            if (isListenerSetup || !userId || !db) return; 
+
+            isListenerSetup = true; // 리스너 설정 플래그 ON
+
+            const chatRef = collection(db, getChatCollectionPath(userId));
+            const messagesList = document.getElementById('chat-messages');
+
+            // Listen for messages (ordered by timestamp, client-side sorting is preferred for simplicity)
+            onSnapshot(chatRef, (snapshot) => {
+                let messages = [];
+                snapshot.forEach(doc => {
+                    messages.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort messages by timestamp to ensure correct order
+                // Firestore timestamp 객체가 없을 수 있으므로 안전하게 처리
+                messages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+
+                messagesList.innerHTML = ''; // Clear existing messages
+
+                if (messages.length === 0) {
+                    // 번역된 빈 메시지 텍스트를 가져와서 사용
+                    const emptyMessageText = typeof window.getL10nText === 'function' 
+                        ? window.getL10nText('chat_empty_message') 
+                        : "상담을 시작하려면 아래에 메시지를 입력하세요."; // Fallback
+                        
+                    messagesList.innerHTML = `<div class="p-4 text-center text-gray-400">${emptyMessageText}</div>`;
+                }
+
+                messages.forEach(msg => {
+                    const messageElement = document.createElement('div');
+                    const isUser = msg.role === 'user';
+                    const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '방금';
+
+                    messageElement.className = isUser ? 'flex justify-end mb-4' : 'flex justify-start mb-4';
+                    
+                    messageElement.innerHTML = `
+                        <div class="max-w-xs md:max-w-md lg:max-w-lg ${isUser ? 'bg-indigo-500 text-white rounded-l-xl rounded-t-xl' : 'bg-white text-gray-800 rounded-r-xl rounded-t-xl shadow-md'} p-3 break-words">
+                            <p class="text-sm">${msg.text}</p>
+                            <span class="text-xs mt-1 block ${isUser ? 'text-indigo-200' : 'text-gray-500'} text-right">${time}</span>
+                        </div>
+                    `;
+                    messagesList.appendChild(messageElement);
+                });
+
+                // Scroll to the latest message
+                messagesList.scrollTop = messagesList.scrollHeight;
+            }, (error) => {
+                console.error("Error listening to chat data:", error);
+                // 권한 오류 발생 시, 사용자에게 명확히 안내
+                messagesList.innerHTML = `<div class="p-4 text-center text-red-500">실시간 데이터 로딩 오류: 데이터베이스 권한이 부족합니다. (Error: ${error.message})</div>`;
+                isListenerSetup = false; // 오류 발생 시 리스너 재설정을 위해 플래그 해제
+            });
+        }
+
+        /**
+         * Send a new chat message
+         */
+        window.sendMessage = async function() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+
+            if (!text) return;
+            // userId가 설정되어 있고 (인증 완료), db가 준비되었는지 확인
+            if (!userId || !db) {
+                alert('데이터베이스 연결 및 인증 중입니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, getChatCollectionPath(userId)), {
+                    role: 'user',
+                    text: text,
+                    timestamp: serverTimestamp()
+                });
+                input.value = ''; // Clear input field
+            } catch (error) {
+                console.error("Error adding document:", error);
+                alert('메시지 전송에 실패했습니다: ' + error.message);
+            }
+        };
+
+        // Initialize Firebase on window load
+        initializeFirebaseAndAuth();
+
+    </script>
+
+    <!-- Google Translate Script -->
     <script type="text/javascript">
-        // Google 번역 위젯 초기화 함수
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
-                pageLanguage: 'ko', // 기본 페이지 언어는 한국어 (원문)
-                // 플랫폼의 주요 타겟 국가인 영어, 일본어, 중국어 간체, 인도네시아어를 포함
-                includedLanguages: 'en,ja,zh-CN,id', 
+                pageLanguage: 'ko',
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-                autoDisplay: false
+                autoDisplay: true
             }, 'google_translate_element');
         }
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f7f9fb;
-        }
-        /* Custom scrollbar for better look */
-        .inquiry-list::-webkit-scrollbar {
-            width: 6px;
-        }
-        .inquiry-list::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
-            border-radius: 3px;
-        }
-        .inquiry-list::-webkit-scrollbar-track {
-            background-color: #f1f5f9;
-        }
-        /* Hide all view containers by default, show only the active one */
-        .view-container {
-            display: none;
-        }
-        /* Google Translate 위젯 스타일 조정 */
-        #google_translate_element {
-            line-height: 1;
-        }
-        /* Google Translate 드롭다운 버튼 스타일링 */
-        #google_translate_element .goog-te-gadget-simple {
-            font-size: 13px !important;
-            border: 1px solid #d1d5db !important; /* gray-300 */
-            border-radius: 9999px !important; /* rounded-full */
-            padding: 4px 10px !important;
-            background-color: #f3f4f6 !important; /* gray-100 */
-            color: #4b5563 !important; /* gray-600 */
-            cursor: pointer;
-        }
-    </style>
-</head>
-<body class="min-h-screen flex flex-col">
-
-    <!-- Header & Navigation -->
-    <header class="bg-white shadow-md p-4 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap">
-            <h1 id="app-title" class="text-2xl font-bold text-blue-600 flex items-center mb-2 md:mb-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                K-의료 토탈 케어 플랫폼
-            </h1>
-            
-            <div class="flex items-center space-x-4 flex-wrap mt-2 md:mt-0">
-                <!-- Google Translate Widget Container: 여기서 언어 드롭다운 메뉴가 표시됩니다. -->
-                <div id="google_translate_element" class="text-sm"></div>
-
-                <!-- L10n Toggle Button (플랫폼 자체 콘텐츠 언어 전환) -->
-                <button id="lang-toggle-button" class="text-sm font-semibold rounded-full bg-gray-100 text-gray-700 px-3 py-1 hover:bg-gray-200 transition duration-150">
-                    EN
-                </button>
-                <div id="auth-status" class="text-xs text-gray-600 rounded-full bg-blue-50 px-3 py-1">
-                    인증 중...
-                </div>
-            </div>
-            
-            <!-- Navigation Links -->
-            <nav class="w-full mt-3 flex justify-start space-x-2 sm:space-x-4 border-t pt-2">
-                <button id="nav-landing" data-view="landing" class="nav-button text-sm font-medium px-3 py-1 rounded-lg bg-blue-600 text-white transition duration-150">홈</button>
-                <button id="nav-company" data-view="company" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">회사 소개</button>
-                <button id="nav-partners" data-view="partners" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">제휴 병원</button>
-                <button id="nav-inquiry" data-view="inquiry" class="nav-button text-sm font-medium px-3 py-1 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150">1:1 상담</button>
-            </nav>
-        </div>
-    </header>
-
-    <!-- Main Content Container -->
-    <main class="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
+    <!-- Language Switcher and Localization Script -->
+    <script>
+        // 수정된 주소는 이곳에 하드코딩됩니다.
+        const PLATFORM_ADDRESS = "https://chespro-director.github.io/ktotalcare/";
         
-        <!-- ============================================== -->
-        <!-- 1. Landing Page View -->
-        <!-- ============================================== -->
-        <div id="landing-view" class="view-container bg-white p-8 rounded-xl shadow-xl text-center">
-            <h2 id="landing-title" class="text-3xl md:text-4xl font-extrabold text-blue-700 mb-4">
-                K-의료 관광의 새로운 기준
-            </h2>
-            <p id="landing-subtitle" class="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
-                대한민국의 우수한 의료 기술과 토탈 케어 서비스를 결합하여 전 세계 환자들에게 최고의 치료 경험을 선사합니다.
-            </p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.238a4.5 4.5 0 011.13 6.591l-3.535 3.536a1.5 1.5 0 01-2.122 0l-3.535-3.536m-2.122-2.121a4.5 4.5 0 010-6.364m.001-6.364a4.5 4.5 0 016.364 0L12 5.636l1.318-1.318a4.5 4.5 0 016.364 0z" /></svg>
-                    <h3 id="landing-card1-title" class="font-bold text-gray-800 mb-2">최고 수준의 의료진</h3>
-                    <p id="landing-card1-text" class="text-sm text-gray-500">
-                        대학병원급 전문의와 최신 장비를 통한 정확하고 안전한 진료.
-                    </p>
-                </div>
-                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                    <h3 id="landing-card2-title" class="font-bold text-gray-800 mb-2">맞춤형 토탈 케어</h3>
-                    <p id="landing-card2-text" class="text-sm text-gray-500">
-                        출국 전 상담부터 귀국 후 관리까지, 전담 코디네이터 배정.
-                    </p>
-                </div>
-                <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.477 3-10S13.657 3 12 3s-3 4.477-3 10 1.343 10 3 10z" /></svg>
-                    <h3 id="landing-card3-title" class="font-bold text-gray-800 mb-2">간편한 IT 플랫폼</h3>
-                    <p id="landing-card3-text" class="text-sm text-gray-500">
-                        모바일 앱을 통해 모든 예약, 상담, 결제 과정을 손쉽게 처리.
-                    </p>
-                </div>
-            </div>
-            <button onclick="changeView('inquiry')" id="landing-cta" class="mt-8 bg-blue-600 text-white text-lg py-3 px-8 rounded-full hover:bg-blue-700 transition duration-150 shadow-lg">
-                지금 1:1 상담 신청하기
-            </button>
-        </div>
+        // Define all supported languages for easy iteration
+        const SUPPORTED_LANGS = ['ko', 'en', 'ch', 'ja', 'id', 'th', 'vi'];
 
-        <!-- ============================================== -->
-        <!-- 2. Company Intro View -->
-        <!-- ============================================== -->
-        <div id="company-view" class="view-container bg-white p-8 rounded-xl shadow-xl">
-            <h2 id="company-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
-                외국인환자유치 전문기업 ㈜태린메드
-            </h2>
-            <div class="space-y-6 text-gray-700">
-                <p id="company-section1-title" class="text-xl font-semibold text-blue-600">사업 개요 및 비전</p>
-                <p id="company-section1-text" class="text-sm leading-relaxed">
-                    ㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.
-                </p>
-
-                <p id="company-section2-title" class="text-xl font-semibold text-blue-600">주요 타겟 시장</p>
-                <ul id="company-section2-list" class="list-disc list-inside space-y-1 text-sm">
-                    <li>인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보</li>
-                    <li>베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장</li>
-                    <li>중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화</li>
-                    <li>미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출</li>
-                </ul>
-
-                <p id="company-section3-title" class="text-xl font-semibold text-blue-600">주요 서비스</p>
-                <p id="company-section3-text" class="text-sm leading-relaxed">
-                    IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 '토탈 케어 서비스'를 제공합니다.
-                </p>
-            </div>
-        </div>
-
-        <!-- ============================================== -->
-        <!-- 3. Partner Hospitals View -->
-        <!-- ============================================== -->
-        <div id="partners-view" class="view-container bg-white p-8 rounded-xl shadow-xl">
-            <h2 id="partners-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
-                제휴 병원 및 전문 분야
-            </h2>
-            <p id="partners-description" class="text-sm text-gray-500 mb-6">
-                ㈜태린메드는 각 분야별 최고의 전문성을 갖춘 국내 유수의 병원 및 클리닉과 공식 제휴를 맺고 있습니다.
-            </p>
-
-            <div id="partner-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Partner Cards will be inserted here by JS -->
-            </div>
-        </div>
-
-        <!-- ============================================== -->
-        <!-- 4. Inquiry View (Original Content) -->
-        <!-- ============================================== -->
-        <div id="inquiry-view" class="view-container">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Inquiry Form Section -->
-                <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-fit">
-                    <h2 id="inquiry-form-title" class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">1:1 상담 신청 (Inquiry)</h2>
-                    <p id="inquiry-form-description" class="text-sm text-gray-500 mb-4">
-                        인도네시아, 미국, 중화권 등 전 세계 환자들을 위한 상담 창구입니다. 원하는 진료 분야를 선택하고 문의를 남겨주세요.
-                    </p>
-
-                    <form id="inquiry-form" class="space-y-4">
-                        <div>
-                            <label id="label-name" for="name" class="block text-sm font-medium text-gray-700">이름 (Name)</label>
-                            <input type="text" id="name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
-                        </div>
-
-                        <div>
-                            <label id="label-country" for="country" class="block text-sm font-medium text-gray-700">국가/지역 (Country)</label>
-                            <select id="country" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white">
-                                <option value="">-- 선택 --</option>
-                                <option value="Indonesia">인도네시아</option>
-                                <option value="Vietnam">베트남</option>
-                                <option value="Thailand">태국</option>
-                                <option value="China">중국</option>
-                                <option value="Taiwan">대만</option>
-                                <option value="USA">미국</option>
-                                <option value="Other">기타</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label id="label-treatment" for="treatment" class="block text-sm font-medium text-gray-700">희망 진료 분야 (Treatment Type)</label>
-                            <select id="treatment" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white">
-                                <option value="">-- 선택 --</option>
-                                <option value="Beauty/PlasticSurgery">미용/성형외과</option>
-                                <option value="Dermatology">피부과</option>
-                                <option value="HealthCheckup">정밀 건강 검진</option>
-                                <option value="SeriousIllness">중증 질환 (암, 척추 등)</option>
-                                <option value="Dental/Ophthalmology">치과/안과</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label id="label-message" for="message" class="block text-sm font-medium text-gray-700">문의 내용 (Message)</label>
-                            <textarea id="message" rows="4" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"></textarea>
-                        </div>
-
-                        <button type="submit" id="submit-button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-md">
-                            문의 신청하기
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Inquiry List / Status Section -->
-                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
-                    <h2 id="inquiry-list-title" class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2 flex justify-between items-center">
-                        실시간 문의 현황 (Live Inquiry List)
-                        <span id="loading-indicator" class="text-xs text-gray-500 hidden">
-                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span id="loading-indicator-text-target">데이터 로딩 중...</span>
-                        </span>
-                    </h2>
-                    
-                    <div id="inquiry-list" class="space-y-3 inquiry-list max-h-[600px] overflow-y-auto pr-2">
-                        <!-- Inquiry items will be inserted here -->
-                        <p class="text-gray-500 text-sm p-4 bg-gray-50 rounded-lg" id="no-data-message">
-                            아직 접수된 문의가 없습니다. 새로운 문의를 등록해 보세요!
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Toast/Modal for Messages -->
-        <div id="toast-message" class="fixed bottom-5 right-5 bg-green-500 text-white p-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-0" role="alert" style="pointer-events: none;">
-            <!-- Message content -->
-        </div>
-
-    </main>
-
-    <!-- Firebase SDKs & Core Logic -->
-    <script type="module">
-        // Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            serverTimestamp, 
-            onSnapshot,
-            query,
-            // Use client-side sorting instead of orderBy to avoid index errors in Firestore
-            // orderBy 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase Instances
-        let app = null;
-        let db = null;
-        let auth = null;
-        let userId = null;
-        let isAuthReady = false;
-        let currentLang = 'ko'; // Default language is Korean
-
-        // ==============================================
-        // 1. Localization (L10n) Data
-        // ==============================================
-        const L10n = {
+        const translations = {
             'ko': {
-                // Header & Nav
-                'app-title': 'K-의료 토탈 케어 플랫폼',
-                'nav-landing': '홈',
-                'nav-company': '회사 소개',
-                'nav-partners': '제휴 병원',
-                'nav-inquiry': '1:1 상담',
-                'auth-status-loading': '인증 중...',
-                'auth-status-waiting': '인증 대기 중...',
-                'auth-status-failed': '로그인 실패',
-                'auth-status-error': '초기화 오류',
-                
-                // Landing View
-                'landing-title': 'K-의료 관광의 새로운 기준',
-                'landing-subtitle': '대한민국의 우수한 의료 기술과 토탈 케어 서비스를 결합하여 전 세계 환자들에게 최고의 치료 경험을 선사합니다.',
-                'landing-card1-title': '최고 수준의 의료진',
-                'landing-card1-text': '대학병원급 전문의와 최신 장비를 통한 정확하고 안전한 진료.',
-                'landing-card2-title': '맞춤형 토탈 케어',
-                'landing-card2-text': '출국 전 상담부터 귀국 후 관리까지, 전담 코디네이터 배정.',
-                'landing-card3-title': '간편한 IT 플랫폼',
-                'landing-card3-text': '모바일 앱을 통해 모든 예약, 상담, 결제 과정을 손쉽게 처리.',
-                'landing-cta': '지금 1:1 상담 신청하기',
-                
-                // Company View
-                'company-title': '외국인환자유치 전문기업 ㈜태린메드',
-                'company-section1-title': '사업 개요 및 비전',
-                'company-section1-text': '㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.',
-                'company-section2-title': '주요 타겟 시장',
-                'company-section2-list': [
-                    '인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보',
-                    '베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장',
-                    '중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화',
-                    '미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출'
+                platform_name: "K-TOTAL CARE 플랫폼",
+                subtitle: "K-의료와 토탈 케어 서비스를 한 곳에서!",
+                menu_home: "홈",
+                menu_about: "플랫폼 소개",
+                menu_services: "주요 서비스",
+                menu_consultation: "1:1 상담",
+                main_title: "대한민국 의료 관광의 새로운 시작",
+                main_description: "ktotalcare.com은 인도네시아, 베트남 등 아시아 환자들을 한국의 우수한 의료기관과 연결하는 올인원(All-in-One) 토탈 케어 플랫폼입니다.",
+                section_title_1: "왜 K-TOTAL CARE인가?",
+                service_1_title: "검증된 병원 네트워크",
+                service_1_desc: "의료해외진출법에 등록된 전문 의료기관만 제휴하여 안전하고 신뢰할 수 있는 서비스를 제공합니다.",
+                service_2_title: "진료 외 토탈 지원",
+                service_2_desc: "교통, 숙박, 전문 통역, K-뷰티 사후 관리 제품 연계까지 모든 과정을 지원합니다.",
+                service_3_title: "맞춤형 의료 패키지",
+                service_3_desc: "성형, 피부, 건강검진 등 고객의 니즈에 맞춘 최적의 특화 상품 패키지를 제공합니다.",
+                consult_title: "1:1 실시간 전문 상담 (Secure Chat)",
+                consult_desc: "궁금한 점을 문의하세요. 전문 코디네이터가 신속하고 정확하게 답변해 드립니다.",
+                send_button: "전송",
+                placeholder_input: "메시지를 입력하세요...",
+                user_id_label: "현재 사용자 ID:",
+                language_switcher: "언어 선택",
+                cta_consult_button: "1:1 상담 신청하기",
+                chat_empty_message: "상담을 시작하려면 아래에 메시지를 입력하세요.",
+                loading_auth_message: "인증 중입니다. 잠시만 기다려주세요.",
+                footer_copyright: "&copy; 2024 K-TOTAL CARE Platform. All rights reserved. | Powered by TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "플랫폼 주소:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "㈜태린메드 사업 개요 및 비전",
+                biz_overview_p1: "㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.",
+                market_title: "주요 타겟 시장",
+                market_1: "인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보",
+                market_2: "베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장",
+                market_3: "중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화",
+                market_4: "미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출",
+                service_main_title: "주요 서비스",
+                service_main: "IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 '토탈 케어 서비스'를 제공합니다.",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "주식회사 태린메드 (TAELYN MED) 고객 신뢰 상세 안내",
+                trust_desc: "K-TOTAL CARE 플랫폼 운영사인 (주)태린메드는 외국인환자유치 등록 의료기관 및 전문 기관과의 공식 제휴를 통해 고객의 안전과 신뢰를 최우선으로 합니다. 아래 제휴 현황을 확인하실 수 있습니다.",
+                trust_hospital_title: "공식 제휴 병원 및 전문기관",
+                trust_hospital_list: [
+                    "도자기의원 (피부, 성형)",
+                    "원데이치과 (치과 진료)",
+                    "하늘안과 (안과 진료)",
+                    "A 병원 (종합 검진)",
+                    "B 성형외과 (성형 수술)",
+                    "C 피부과 (피부/미용)",
+                    "D 치과 (치아 교정)",
+                    "E 한의원 (한방 진료)",
+                    "F 건강검진센터 (종합 건강검진)"
                 ],
-                'company-section3-title': '주요 서비스',
-                'company-section3-text': 'IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 \'토탈 케어 서비스\'를 제공합니다.',
-
-                // Partners View
-                'partners-title': '제휴 병원 및 전문 분야',
-                'partners-description': '㈜태린메드는 각 분야별 최고의 전문성을 갖춘 국내 유수의 병원 및 클리닉과 공식 제휴를 맺고 있습니다.',
-                'partners-mock-data': [
-                    { name: '서울 미모 성형외과', field: '미용/성형외과', specialty: '안면 윤곽 및 가슴 성형 전문' },
-                    { name: '강남 에이스 피부과', field: '피부과', specialty: '레이저 리프팅, 색소 질환 집중 치료' },
-                    { name: '한국 종합 건강 검진센터', field: '정밀 건강 검진', specialty: '프리미엄 VIP 정밀 검진 프로그램' },
-                    { name: '새 생명 척추 병원', field: '중증 질환 (암, 척추 등)', specialty: '비수술 척추 교정 및 재활' },
-                    { name: '글로벌 아이 치과', field: '치과/안과', specialty: '치아 교정 및 라식/라섹' },
-                ],
-                'field-label': '분야',
-                'specialty-label': '특화 진료',
-
-                // Inquiry View
-                'inquiry-form-title': '1:1 상담 신청',
-                'inquiry-form-description': '인도네시아, 미국, 중화권 등 전 세계 환자들을 위한 상담 창구입니다. 원하는 진료 분야를 선택하고 문의를 남겨주세요.',
-                'label-name': '이름',
-                'label-country': '국가/지역',
-                'label-treatment': '희망 진료 분야',
-                'label-message': '문의 내용',
-                'submit-button': '문의 신청하기',
-                'inquiry-list-title': '실시간 문의 현황',
-                'loading-indicator-text': '데이터 로딩 중...',
-                'no-data-message': '아직 접수된 문의가 없습니다. 새로운 문의를 등록해 보세요!',
-                'toast-success': '문의 신청이 완료되었습니다. 곧 담당자가 연락드릴 예정입니다.',
-                'toast-fail': '문의 신청에 실패했습니다. 시스템 오류를 확인해 주세요.',
-                'toast-empty': '모든 항목을 입력해 주세요.',
-                'toast-system-ready': '시스템 준비 중입니다. 잠시 후 다시 시도해 주세요.',
-                'inquiry-user-label': '(나의 문의)',
-                'inquiry-date-default': '날짜 미정',
-                'inquiry-submit-loading': '신청 중...',
-                'inquiry-submit-button-ready': '문의 신청하기',
-
+                trust_license_title: "주요 등록 및 인증 현황",
+                trust_license_1: "외국인환자유치업 정식 등록 (보건복지부)",
+                trust_license_2: "IT 플랫폼 기반 의료 관광 토탈 케어 서비스 제공",
+                trust_license_3: "해외 현지 법인 (PT UNICORE BIZPAY INDONESIA)과의 공식 파트너십",
             },
             'en': {
-                // Header & Nav
-                'app-title': 'K-Medical Total Care Platform',
-                'nav-landing': 'Home',
-                'nav-company': 'About Us',
-                'nav-partners': 'Partner Hospitals',
-                'nav-inquiry': '1:1 Inquiry',
-                'auth-status-loading': 'Authenticating...',
-                'auth-status-waiting': 'Auth Pending...',
-                'auth-status-failed': 'Login Failed',
-                'auth-status-error': 'Init Error',
-
-                // Landing View
-                'landing-title': 'New Standard of K-Medical Tourism',
-                'landing-subtitle': 'We combine Korea\'s superior medical technology with total care services to provide the best treatment experience for patients worldwide.',
-                'landing-card1-title': 'Top-Tier Medical Staff',
-                'landing-card1-text': 'Accurate and safe diagnosis by university hospital-level specialists and cutting-edge equipment.',
-                'landing-card2-title': 'Customized Total Care',
-                'landing-card2-text': 'Dedicated coordinator assignment from pre-departure consultation to post-return care.',
-                'landing-card3-title': 'Easy-to-Use IT Platform',
-                'landing-card3-text': 'Handle all reservations, consultations, and payment processes easily through the mobile app.',
-                'landing-cta': 'Apply for 1:1 Consultation Now',
-                
-                // Company View
-                'company-title': 'Taein Med: Specialized Medical Tourism Agency',
-                'company-section1-title': 'Business Overview and Vision',
-                'company-section1-text': 'Taein Med is a specialized legal entity established for attracting and managing foreign patients. Through joint projects with LCS Partners and Unicore Indonesia, we act as a bridge connecting patients across Asia to excellent domestic medical services. Our vision is to lead the medical tourism market with a systematic, IT platform-based total care system.',
-                'company-section2-title': 'Key Target Markets',
-                'company-section2-list': [
-                    'Indonesia: Market focus and securing base through local entity (PT UNICORE BIZPAY INDONESIA)',
-                    'Vietnam/Thailand: Business expansion through partnerships with local agencies and travel companies',
-                    'China: Market entry and stabilization through strategic alliances with large travel agencies',
-                    'USA: Long-term expansion of business scope to enter the global market'
+                platform_name: "K-TOTAL CARE Platform",
+                subtitle: "K-Medical and Total Care Services in One Place!",
+                menu_home: "Home",
+                menu_about: "Platform Info",
+                menu_services: "Key Services",
+                menu_consultation: "1:1 Consultation",
+                main_title: "The New Era of Medical Tourism in Korea",
+                main_description: "ktotalcare.com is an All-in-One Total Care platform connecting patients from Asia (Indonesia, Vietnam, etc.) with Korea's best medical institutions.",
+                section_title_1: "Why K-TOTAL CARE?",
+                service_1_title: "Verified Hospital Network",
+                service_1_desc: "We partner only with specialized medical institutions registered under the Korean Medical Overseas Expansion Act, ensuring safe and reliable service.",
+                service_2_title: "Total Support Beyond Treatment",
+                service_2_desc: "We assist with the entire process: transportation, accommodation, professional interpretation, and post-care linkage to K-Beauty products.",
+                service_3_title: "Customized Medical Packages",
+                service_3_desc: "We offer optimized specialty packages tailored to customer needs, including plastic surgery, dermatology, and comprehensive health check-ups.",
+                consult_title: "1:1 Real-Time Professional Consultation (Secure Chat)",
+                consult_desc: "Ask any questions you have. Our expert coordinator will provide prompt and accurate answers.",
+                send_button: "Send",
+                placeholder_input: "Type your message...",
+                user_id_label: "Current User ID:",
+                language_switcher: "Language Select",
+                cta_consult_button: "Apply for 1:1 Consultation",
+                chat_empty_message: "Type a message below to start a consultation.",
+                loading_auth_message: "Authenticating. Please wait a moment.",
+                footer_copyright: "&copy; 2024 K-TOTAL CARE Platform. All rights reserved. | Powered by TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "Platform Address:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "TAELYN MED Business Overview & Vision",
+                biz_overview_p1: "TAELYN MED Co., Ltd. is a professional corporation established for attracting and managing foreign patients. Through a joint venture with LCS Partners and UNICORE Indonesia, we serve as a bridge connecting patients across Asia to Korea's excellent medical services. Our vision is to lead the medical tourism market through a systematic, IT platform-based total care system.",
+                market_title: "Key Target Markets",
+                market_1: "Indonesia: Market focus and establishment of a foothold through the local subsidiary (PT UNICORE BIZPAY INDONESIA)",
+                market_2: "Vietnam/Thailand: Business expansion through partnerships with local agencies and travel companies",
+                market_3: "China: Market entry and stabilization through strategic alliance with major travel agencies",
+                market_4: "USA: Long-term business expansion into the global market",
+                service_main_title: "Key Services",
+                service_main: "We provide 'Total Care Service' covering the patient's entire journey, including IT platform-based real-time consultation, hospital booking and schedule management, and linkage services for interpretation, accommodation, and transportation.",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "TAELYN MED Customer Trust Detailed Guide",
+                trust_desc: "TAELYN MED Co., Ltd., the operator of the K-TOTAL CARE platform, prioritizes customer safety and trust through official partnerships with medical institutions and specialized agencies registered for attracting foreign patients. You can check the partnership status below.",
+                trust_hospital_title: "Official Partner Hospitals and Specialized Institutions",
+                trust_hospital_list: [
+                    "Dojaki Clinic (Dermatology, Plastic Surgery)",
+                    "One Day Dental Clinic (Dental Treatment)",
+                    "Haneul Eye Clinic (Ophthalmology)",
+                    "A Hospital (General Check-up)",
+                    "B Plastic Surgery (Plastic Surgery)",
+                    "C Dermatology (Skin/Aesthetics)",
+                    "D Dental Clinic (Orthodontics)",
+                    "E Oriental Clinic (Traditional Korean Medicine)",
+                    "F Health Check-up Center (Comprehensive Health Check-up)"
                 ],
-                'company-section3-title': 'Key Services',
-                'company-section3-text': 'We provide a \'Total Care Service\' that covers the patient\'s entire journey, including real-time consultation via IT platform, hospital reservation/schedule management, interpretation/accommodation/transportation linkage services.',
-
-                // Partners View
-                'partners-title': 'Partner Hospitals and Specialties',
-                'partners-description': 'Taein Med is officially partnered with leading domestic hospitals and clinics that possess the highest level of expertise in each field.',
-                'partners-mock-data': [
-                    { name: 'Seoul Mimo Plastic Surgery', field: 'Beauty/Plastic Surgery', specialty: 'Facial contouring and breast augmentation specialist' },
-                    { name: 'Gangnam Ace Dermatology', field: 'Dermatology', specialty: 'Laser lifting and intensive pigmentary disorder treatment' },
-                    { name: 'Korea Comprehensive Health Checkup Center', field: 'Health Checkup', specialty: 'Premium VIP detailed examination program' },
-                    { name: 'New Life Spine Hospital', field: 'Serious Illness (Cancer, Spine, etc.)', specialty: 'Non-surgical spinal correction and rehabilitation' },
-                    { name: 'Global Eye Dental Clinic', field: 'Dental/Ophthalmology', specialty: 'Dental orthodontics and LASIK/LASEK' },
+                trust_license_title: "Key Registrations and Certifications",
+                trust_license_1: "Official Registration as Foreign Patient Attraction Business (Ministry of Health and Welfare)",
+                trust_license_2: "Provision of IT Platform-based Medical Tourism Total Care Service",
+                trust_license_3: "Official Partnership with Overseas Local Subsidiary (PT UNICORE BIZPAY INDONESIA)",
+            },
+            'zh': {
+                platform_name: "K-TOTAL CARE 平台",
+                subtitle: "K-医疗和全方位护理服务一站式体验！",
+                menu_home: "首页",
+                menu_about: "平台介绍",
+                menu_services: "主要服务",
+                menu_consultation: "1对1咨询",
+                main_title: "韩国医疗旅游的新起点",
+                main_description: "ktotalcare.com 是一个一体化的全方位护理平台，将印度尼西亚、越南等亚洲患者与韩国优秀的医疗机构连接起来。",
+                section_title_1: "为什么选择 K-TOTAL CARE?",
+                service_1_title: "认证医院网络",
+                service_1_desc: "我们只与在韩国海外医疗拓展法下注册的专业医疗机构合作，确保提供安全可靠的服务。",
+                service_2_title: "诊疗外全面支持",
+                service_2_desc: "我们协助全程：交通、住宿、专业翻译，以及与 K-美容善后管理产品的连接。",
+                service_3_title: "定制医疗套餐",
+                service_3_desc: "提供根据客户需求定制的优化特色套餐，包括整形、皮肤和综合健康检查。",
+                consult_title: "1对1 实时专业咨询 (安全聊天)",
+                consult_desc: "请咨询您的问题。我们的专业协调员将提供及时准确的答复。",
+                send_button: "发送",
+                placeholder_input: "输入您的信息...",
+                user_id_label: "当前用户 ID:",
+                language_switcher: "选择语言",
+                cta_consult_button: "申请1对1咨询",
+                chat_empty_message: "在下方输入信息开始咨询。",
+                loading_auth_message: "正在认证。请稍候。",
+                footer_copyright: "&copy; 2024 K-TOTAL CARE 平台. 版权所有. | 由 TAELYN MED, LCS Partners, UNICORE Indonesia 提供支持.",
+                footer_address_prefix: "平台地址:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "泰琳医疗(TAELYN MED) 业务概况与愿景",
+                biz_overview_p1: "泰琳医疗(TAELYN MED) 是一家为招募和管理外国患者而设立的专业法人。我们通过与LCS Partners和UNICORE印尼法人的合作，为亚洲各地的患者提供连接韩国优质医疗服务的桥梁。我们的愿景是通过基于IT平台的系统化全方位护理系统，引领医疗旅游市场。",
+                market_title: "主要目标市场",
+                market_1: "印度尼西亚: 通过当地法人(PT UNICORE BIZPAY INDONESIA)实现市场集中和基地建设",
+                market_2: "越南/泰国: 通过与当地中介和旅行社的合作进行业务拓展",
+                market_3: "中国: 通过与大型旅行社的战略合作进入市场并实现稳定化",
+                market_4: "美国: 长期扩大业务范围以进入全球市场",
+                service_main_title: "主要服务",
+                service_main: "我们提供覆盖患者全程的“全方位护理服务”，包括基于IT平台的实时咨询、医院预约和日程管理，以及口译/住宿/交通关联服务等。",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "泰琳医疗(TAELYN MED) 客户信任详细指南",
+                trust_desc: "K-TOTAL CARE 平台运营商泰琳医疗(TAELYN MED) 通过与注册招募外国患者的医疗机构和专业机构的官方合作，将客户的安全和信任放在首位。您可以在下方查看合作状态。",
+                trust_hospital_title: "官方合作医院和专业机构",
+                trust_hospital_list: [
+                    "Dojaki 诊所 (皮肤, 整形)",
+                    "One Day 牙科 (牙科诊疗)",
+                    "Haneul 眼科 (眼科诊疗)",
+                    "A 医院 (综合体检)",
+                    "B 整形外科 (整形手术)",
+                    "C 皮肤科 (皮肤/美容)",
+                    "D 牙科 (牙齿矫正)",
+                    "E 韩国传统医学诊所 (韩方诊疗)",
+                    "F 健康体检中心 (综合健康体检)"
                 ],
-                'field-label': 'Field',
-                'specialty-label': 'Specialty',
-                
-                // Inquiry View
-                'inquiry-form-title': '1:1 Consultation Request',
-                'inquiry-form-description': 'This is a consultation channel for patients worldwide, including Indonesia, the US, and Greater China. Please select your desired field of treatment and leave your inquiry.',
-                'label-name': 'Name',
-                'label-country': 'Country/Region',
-                'label-treatment': 'Desired Treatment Field',
-                'label-message': 'Message',
-                'submit-button': 'Submit Inquiry',
-                'inquiry-list-title': 'Live Inquiry List',
-                'loading-indicator-text': 'Data Loading...',
-                'no-data-message': 'No inquiries have been submitted yet. Be the first to post!',
-                'toast-success': 'Your inquiry has been submitted. A coordinator will contact you shortly.',
-                'toast-fail': 'Failed to submit inquiry. Please check for system errors.',
-                'toast-empty': 'Please fill in all fields.',
-                'toast-system-ready': 'System is preparing. Please try again shortly.',
-                'inquiry-user-label': '(My Inquiry)',
-                'inquiry-date-default': 'Date Undetermined',
-                'inquiry-submit-loading': 'Submitting...',
-                'inquiry-submit-button-ready': 'Submit Inquiry',
-
+                trust_license_title: "主要注册和认证状态",
+                trust_license_1: "正式注册为外国患者招募企业 (韩国保健福祉部)",
+                trust_license_2: "提供基于IT平台的医疗旅游全方位护理服务",
+                trust_license_3: "与海外当地法人 (PT UNICORE BIZPAY INDONESIA) 的官方合作关系",
+            },
+            'id': {
+                platform_name: "Platform K-TOTAL CARE",
+                subtitle: "Layanan K-Medis dan Perawatan Total di Satu Tempat!",
+                menu_home: "Beranda",
+                menu_about: "Tentang Platform",
+                menu_services: "Layanan Utama",
+                menu_consultation: "Konsultasi 1:1",
+                main_title: "Era Baru Pariwisata Medis di Korea Selatan",
+                main_description: "ktotalcare.com adalah platform Perawatan Total All-in-One yang menghubungkan pasien dari Asia (Indonesia, Vietnam, dll.) dengan institusi medis terbaik Korea.",
+                section_title_1: "Mengapa K-TOTAL CARE?",
+                service_1_title: "Jaringan Rumah Sakit Terverifikasi",
+                service_1_desc: "Kami hanya bermitra dengan institusi medis terdaftar di bawah Undang-Undang Ekspansi Medis Luar Negeri Korea, memastikan layanan yang aman dan terpercaya.",
+                service_2_title: "Dukungan Total di Luar Perawatan",
+                service_2_desc: "Kami membantu seluruh proses: transportasi, akomodasi, interpretasi profesional, dan produk pasca-perawatan K-Beauty.",
+                service_3_title: "Paket Medis yang Disesuaikan",
+                service_3_desc: "Kami menawarkan paket khusus yang dioptimalkan sesuai kebutuhan pelanggan, termasuk bedah plastik, dermatologi, dan pemeriksaan kesehatan komprehensif.",
+                consult_title: "Konsultasi Profesional Real-Time 1:1 (Obrolan Aman)",
+                consult_desc: "Ajukan pertanyaan apa pun yang Anda miliki. Koordinator ahli kami akan memberikan jawaban yang cepat dan akurat.",
+                send_button: "Kirim",
+                placeholder_input: "Ketik pesan Anda...",
+                user_id_label: "ID Pengguna Saat Ini:",
+                language_switcher: "Pilih Bahasa",
+                cta_consult_button: "Ajukan Konsultasi 1:1",
+                chat_empty_message: "Ketik pesan di bawah untuk memulai konsultasi.",
+                loading_auth_message: "Sedang mengautentikasi. Mohon tunggu sebentar.",
+                footer_copyright: "&copy; 2024 Platform K-TOTAL CARE. Semua hak dilindungi. | Didukung oleh TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "Alamat Platform:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "Tinjauan Bisnis & Visi TAELYN MED",
+                biz_overview_p1: "PT TAELYN MED adalah perusahaan profesional yang didirikan untuk menarik dan mengelola pasien asing. Melalui usaha patungan dengan LCS Partners dan UNICORE Indonesia, kami bertindak sebagai jembatan yang menghubungkan pasien di seluruh Asia dengan layanan medis unggul di Korea. Visi kami adalah memimpin pasar pariwisata medis melalui sistem perawatan total yang sistematis berbasis platform IT.",
+                market_title: "Target Pasar Utama",
+                market_1: "Indonesia: Fokus pasar dan pembentukan pijakan melalui anak perusahaan lokal (PT UNICORE BIZPAY INDONESIA)",
+                market_2: "Vietnam/Thailand: Ekspansi bisnis melalui kemitraan dengan agen dan perusahaan perjalanan lokal",
+                market_3: "Tiongkok: Masuk dan stabilisasi pasar melalui aliansi strategis dengan agen perjalanan besar",
+                market_4: "Amerika Serikat: Ekspansi bisnis jangka panjang ke pasar global",
+                service_main_title: "Layanan Utama",
+                service_main: "Kami menyediakan 'Layanan Perawatan Total' yang mencakup seluruh perjalanan pasien, termasuk konsultasi waktu nyata berbasis platform IT, pemesanan rumah sakit dan manajemen jadwal, serta layanan penghubung untuk interpretasi, akomodasi, dan transportasi.",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "Panduan Rincian Kepercayaan Pelanggan TAELYN MED",
+                trust_desc: "PT TAELYN MED, operator platform K-TOTAL CARE, memprioritaskan keselamatan dan kepercayaan pelanggan melalui kemitraan resmi dengan institusi medis dan agensi khusus yang terdaftar untuk menarik pasien asing. Anda dapat memeriksa status kemitraan di bawah.",
+                trust_hospital_title: "Rumah Sakit Mitra Resmi dan Institusi Khusus",
+                trust_hospital_list: [
+                    "Klinik Dojaki (Dermatologi, Bedah Plastik)",
+                    "Klinik Gigi One Day (Perawatan Gigi)",
+                    "Klinik Mata Haneul (Oftalmologi)",
+                    "Rumah Sakit A (Pemeriksaan Umum)",
+                    "Bedah Plastik B (Bedah Plastik)",
+                    "Dermatologi C (Kulit/Estetika)",
+                    "Klinik Gigi D (Ortodontik)",
+                    "Klinik Obat Tradisional E (Pengobatan Tradisional Korea)",
+                    "Pusat Pemeriksaan Kesehatan F (Pemeriksaan Kesehatan Komprehensif)"
+                ],
+                trust_license_title: "Registrasi dan Sertifikasi Utama",
+                trust_license_1: "Registrasi Resmi sebagai Bisnis Penarik Pasien Asing (Kementerian Kesehatan dan Kesejahteraan)",
+                trust_license_2: "Penyediaan Layanan Perawatan Total Pariwisata Medis berbasis Platform IT",
+                trust_license_3: "Kemitraan Resmi dengan Anak Perusahaan Lokal Luar Negeri (PT UNICORE BIZPAY INDONESIA)",
+            },
+            'th': {
+                platform_name: "แพลตฟอร์ม K-TOTAL CARE",
+                subtitle: "บริการ K-Medical และการดูแลครบวงจรในที่เดียว!",
+                menu_home: "หน้าแรก",
+                menu_about: "ข้อมูลแพลตฟอร์ม",
+                menu_services: "บริการหลัก",
+                menu_consultation: "ปรึกษา 1:1",
+                main_title: "การเริ่มต้นใหม่ของการท่องเที่ยวเชิงการแพทย์ในเกาหลี",
+                main_description: "ktotalcare.com คือแพลตฟอร์มการดูแลครบวงจรแบบ All-in-One ที่เชื่อมโยงผู้ป่วยจากเอเชีย (อินโดนีเซีย, เวียดนาม ฯลฯ) เข้ากับสถาบันทางการแพทย์ชั้นนำของเกาหลี",
+                section_title_1: "ทำไมต้อง K-TOTAL CARE?",
+                service_1_title: "เครือข่ายโรงพยาบาลที่ผ่านการตรวจสอบ",
+                service_1_desc: "เราร่วมมือเฉพาะกับสถาบันทางการแพทย์ที่เชี่ยวชาญซึ่งจดทะเบียนภายใต้กฎหมายการขยายการแพทย์ในต่างประเทศของเกาหลี ทำให้มั่นใจได้ว่าบริการมีความปลอดภัยและน่าเชื่อถือ",
+                service_2_title: "การสนับสนุนครบวงจรนอกเหนือจากการรักษา",
+                service_2_desc: "เราให้ความช่วยเหลือตลอดกระบวนการ: การเดินทาง, ที่พัก, ล่ามมืออาชีพ, และการเชื่อมโยงกับผลิตภัณฑ์ดูแลหลังการรักษา K-Beauty",
+                service_3_title: "แพ็คเกจทางการแพทย์ที่ปรับแต่งได้",
+                service_3_desc: "เราเสนอแพ็คเกจเฉพาะทางที่เหมาะสมที่สุดที่ปรับให้เข้ากับความต้องการของลูกค้า รวมถึงศัลยกรรมพลาสติก, ผิวหนัง, และการตรวจสุขภาพที่ครอบคลุม",
+                consult_title: "การปรึกษาหารือจากผู้เชี่ยวชาญแบบเรียลไทม์ 1:1 (แชทปลอดภัย)",
+                consult_desc: "สอบถามคำถามที่คุณมี ผู้ประสานงานผู้เชี่ยวชาญของเราจะให้คำตอบที่รวดเร็วและแม่นยำ",
+                send_button: "ส่ง",
+                placeholder_input: "พิมพ์ข้อความของคุณ...",
+                user_id_label: "ID ผู้ใช้ปัจจุบัน:",
+                language_switcher: "เลือกภาษา",
+                cta_consult_button: "สมัครเข้ารับการปรึกษา 1:1",
+                chat_empty_message: "พิมพ์ข้อความด้านล่างเพื่อเริ่มการปรึกษา.",
+                loading_auth_message: "กำลังตรวจสอบสิทธิ์ กรุณารอสักครู่.",
+                footer_copyright: "&copy; 2024 แพลตฟอร์ม K-TOTAL CARE. สงวนลิขสิทธิ์ | สนับสนุนโดย TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "ที่อยู่แพลตฟอร์ม:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "ภาพรวมธุรกิจและวิสัยทัศน์ TAELYN MED",
+                biz_overview_p1: "บริษัท TAELYN MED จำกัด เป็นบริษัทมืออาชีพที่จัดตั้งขึ้นเพื่อดึงดูดและบริหารจัดการผู้ป่วยชาวต่างชาติ เราทำหน้าที่เป็นสะพานเชื่อมต่อผู้ป่วยทั่วเอเชียเข้ากับบริการทางการแพทย์ที่ยอดเยี่ยมของเกาหลี ผ่านการร่วมทุนกับ LCS Partners และบริษัท UNICORE Indonesia วิสัยทัศน์ของเราคือการเป็นผู้นำตลาดการท่องเที่ยวเชิงการแพทย์ผ่านระบบการดูแลครบวงจรที่เป็นระบบและมีพื้นฐานจากแพลตฟอร์ม IT",
+                market_title: "ตลาดเป้าหมายหลัก",
+                market_1: "อินโดนีเซีย: เน้นตลาดและการสร้างฐานที่มั่นผ่านบริษัทในเครือท้องถิ่น (PT UNICORE BIZPAY INDONESIA)",
+                market_2: "เวียดนาม/ไทย: ขยายธุรกิจผ่านความร่วมมือกับตัวแทนและบริษัทท่องเที่ยวในท้องถิ่น",
+                market_3: "จีน: การเข้าสู่ตลาดและสร้างเสถียรภาพผ่านพันธมิตรเชิงกลยุทธ์กับบริษัทท่องเที่ยวขนาดใหญ่",
+                market_4: "สหรัฐอเมริกา: การขยายธุรกิจระยะยาวเข้าสู่ตลาดโลก",
+                service_main_title: "บริการหลัก",
+                service_main: "เราให้บริการ 'Total Care Service' ที่ครอบคลุมทุกขั้นตอนการเดินทางของผู้ป่วย รวมถึงการให้คำปรึกษาแบบเรียลไทม์ผ่านแพลตฟอร์ม IT, การจองโรงพยาบาลและการจัดการตารางเวลา, และบริการเชื่อมโยงล่าม/ที่พัก/การเดินทาง",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "คู่มือรายละเอียดความไว้วางใจลูกค้า TAELYN MED",
+                trust_desc: "TAELYN MED Co., Ltd., ผู้ดำเนินการแพลตฟอร์ม K-TOTAL CARE, ให้ความสำคัญกับความปลอดภัยและความไว้วางใจของลูกค้าเป็นอันดับแรกผ่านความร่วมมืออย่างเป็นทางการกับสถาบันทางการแพทย์และหน่วยงานพิเศษที่ลงทะเบียนสำหรับการดึงดูดผู้ป่วยชาวต่างชาติ คุณสามารถตรวจสอบสถานะความร่วมมือได้ด้านล่าง",
+                trust_hospital_title: "โรงพยาบาลพันธมิตรอย่างเป็นทางการและสถาบันผู้เชี่ยวชาญ",
+                trust_hospital_list: [
+                    "คลินิก Dojaki (ผิวหนัง, ศัลยกรรมพลาสติก)",
+                    "คลินิกทันตกรรม One Day (การรักษาทางทันตกรรม)",
+                    "คลินิกตา Haneul (จักษุวิทยา)",
+                    "โรงพยาบาล A (การตรวจสุขภาพทั่วไป)",
+                    "ศัลยกรรมพลาสติก B (ศัลยกรรมพลาสติก)",
+                    "ผิวหนัง C (ผิวหนัง/ความงาม)",
+                    "ทันตกรรม D (ทันตกรรมจัดฟัน)",
+                    "คลินิกแพทย์แผนเกาหลี E (การแพทย์แผนเกาหลี)",
+                    "ศูนย์ตรวจสุขภาพ F (การตรวจสุขภาพอย่างครอบคลุม)"
+                ],
+                trust_license_title: "การลงทะเบียนและการรับรองที่สำคัญ",
+                trust_license_1: "การลงทะเบียนอย่างเป็นทางการเป็นธุรกิจดึงดูดผู้ป่วยชาวต่างชาติ (กระทรวงสาธารณสุขและสวัสดิการ)",
+                trust_license_2: "การให้บริการดูแลครบวงจรด้านการท่องเที่ยวเชิงการแพทย์ด้วยแพลตฟอร์ม IT",
+                trust_license_3: "การเป็นพันธมิตรอย่างเป็นทางการกับบริษัทในเครือท้องถิ่นในต่างประเทศ (PT UNICORE BIZPAY INDONESIA)",
+            },
+            'vi': {
+                platform_name: "Nền tảng K-TOTAL CARE",
+                subtitle: "Dịch vụ Y tế K-Medical và Chăm sóc Toàn diện tại một nơi!",
+                menu_home: "Trang chủ",
+                menu_about: "Giới thiệu Nền tảng",
+                menu_services: "Dịch vụ Chính",
+                menu_consultation: "Tư vấn 1:1",
+                main_title: "Khởi đầu mới của Du lịch Y tế Hàn Quốc",
+                main_description: "ktotalcare.com là nền tảng Chăm sóc Toàn diện All-in-One, kết nối bệnh nhân từ Châu Á (Indonesia, Việt Nam, v.v.) với các cơ sở y tế xuất sắc của Hàn Quốc.",
+                section_title_1: "Tại sao chọn K-TOTAL CARE?",
+                service_1_title: "Mạng lưới bệnh viện đã được xác minh",
+                service_1_desc: "Chúng tôi chỉ hợp tác với các cơ sở y tế chuyên biệt đã đăng ký theo Luật Mở rộng Y tế ra nước ngoài của Hàn Quốc, đảm bảo dịch vụ an toàn và đáng tin cậy.",
+                service_2_title: "Hỗ trợ Toàn diện ngoài điều trị",
+                service_2_desc: "Chúng tôi hỗ trợ toàn bộ quá trình: giao thông, chỗ ở, phiên dịch chuyên nghiệp và liên kết với các sản phẩm chăm sóc hậu phẫu K-Beauty.",
+                service_3_title: "Gói Dịch vụ Y tế Tùy chỉnh",
+                service_3_desc: "Chúng tôi cung cấp các gói dịch vụ chuyên biệt tối ưu, phù hợp với nhu cầu của khách hàng, bao gồm phẫu thuật thẩm mỹ, da liễu và kiểm tra sức khỏe toàn diện.",
+                consult_title: "Tư vấn Chuyên nghiệp Thời gian Thực 1:1 (Trò chuyện An toàn)",
+                consult_desc: "Hãy hỏi bất kỳ câu hỏi nào bạn có. Điều phối viên chuyên gia của chúng tôi sẽ cung cấp câu trả lời nhanh chóng và chính xác.",
+                send_button: "Gửi",
+                placeholder_input: "Nhập tin nhắn của bạn...",
+                user_id_label: "ID Người dùng Hiện tại:",
+                language_switcher: "Chọn Ngôn ngữ",
+                cta_consult_button: "Đăng ký Tư vấn 1:1",
+                chat_empty_message: "Nhập tin nhắn dưới đây để bắt đầu tư vấn.",
+                loading_auth_message: "Đang xác thực. Vui lòng đợi trong giây lát.",
+                footer_copyright: "&copy; 2024 Nền tảng K-TOTAL CARE. Bảo lưu mọi quyền. | Được cung cấp bởi TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "Địa chỉ Nền tảng:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "Tổng quan & Tầm nhìn Kinh doanh TAELYN MED",
+                biz_overview_p1: "TAELYN MED là pháp nhân chuyên nghiệp được thành lập để thu hút và quản lý bệnh nhân nước ngoài. Thông qua liên doanh với LCS Partners và UNICORE Indonesia, chúng tôi đóng vai trò cầu nối, kết nối bệnh nhân trên khắp Châu Á với các dịch vụ y tế vượt trội của Hàn Quốc. Tầm nhìn của chúng tôi là dẫn đầu thị trường du lịch y tế thông qua hệ thống chăm sóc toàn diện, có hệ thống dựa trên nền tảng CNTT.",
+                market_title: "Thị trường Mục tiêu Chính",
+                market_1: "Indonesia: Tập trung thị trường và thiết lập chỗ đứng thông qua công ty con tại địa phương (PT UNICORE BIZPAY INDONESIA)",
+                market_2: "Việt Nam/Thái Lan: Mở rộng kinh doanh thông qua quan hệ đối tác với các đại lý và công ty du lịch địa phương",
+                market_3: "Trung Quốc: Gia nhập và ổn định thị trường thông qua liên minh chiến lược với các công ty du lịch lớn",
+                market_4: "Hoa Kỳ: Mở rộng kinh doanh dài hạn vào thị trường toàn cầu",
+                service_main_title: "Dịch vụ Chính",
+                service_main: "Chúng tôi cung cấp 'Dịch vụ Chăm sóc Toàn diện' chịu trách nhiệm cho toàn bộ hành trình của bệnh nhân, bao gồm tư vấn trực tuyến trên nền tảng CNTT, đặt lịch bệnh viện và quản lý lịch trình, cùng với các dịch vụ liên kết về phiên dịch, chỗ ở và giao thông.",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "Hướng dẫn Chi tiết Tin cậy Khách hàng TAELYN MED",
+                trust_desc: "TAELYN MED Co., Ltd., đơn vị vận hành nền tảng K-TOTAL CARE, ưu tiên sự an toàn và tin cậy của khách hàng thông qua quan hệ đối tác chính thức với các cơ sở y tế và cơ quan chuyên môn đã đăng ký để thu hút bệnh nhân nước ngoài. Bạn có thể kiểm tra trạng thái đối tác dưới đây.",
+                trust_hospital_title: "Bệnh viện Đối tác Chính thức và Cơ sở Chuyên môn",
+                trust_hospital_list: [
+                    "Phòng khám Dojaki (Da liễu, Phẫu thuật thẩm mỹ)",
+                    "Nha khoa One Day (Điều trị nha khoa)",
+                    "Phòng khám Mắt Haneul (Nhãn khoa)",
+                    "Bệnh viện A (Kiểm tra sức khỏe tổng quát)",
+                    "Phẫu thuật Thẩm mỹ B (Phẫu thuật thẩm mỹ)",
+                    "Da liễu C (Da/Thẩm mỹ)",
+                    "Nha khoa D (Chỉnh nha)",
+                    "Phòng khám Đông y E (Đông y Hàn Quốc)",
+                    "Trung tâm Kiểm tra Sức khỏe F (Kiểm tra sức khỏe toàn diện)"
+                ],
+                trust_license_title: "Đăng ký và Chứng nhận Chính",
+                trust_license_1: "Đăng ký Chính thức là Doanh nghiệp Thu hút Bệnh nhân Nước ngoài (Bộ Y tế và Phúc lợi)",
+                trust_license_2: "Cung cấp Dịch vụ Chăm sóc Toàn diện Du lịch Y tế dựa trên Nền tảng CNTT",
+                trust_license_3: "Quan hệ Đối tác Chính thức với Công ty Con tại Nước ngoài (PT UNICORE BIZPAY INDONESIA)",
+            },
+            'ja': {
+                platform_name: "K-TOTAL CARE プラットフォーム",
+                subtitle: "K-医療とトータルケアサービスを一つに！",
+                menu_home: "ホーム",
+                menu_about: "プラットフォーム紹介",
+                menu_services: "主要サービス",
+                menu_consultation: "1対1相談",
+                main_title: "韓国医療観光の新たなスタート",
+                main_description: "ktotalcare.com は、インドネシア、ベトナムなどのアジアの患者と韓国の優れた医療機関を結びつけるオールインワントータルケアプラットフォームです。",
+                section_title_1: "なぜ K-TOTAL CARE なのか？",
+                service_1_title: "検証された病院ネットワーク",
+                service_1_desc: "医療海外進出法に登録された専門医療機関のみと提携し、安全で信頼できるサービスを提供します。",
+                service_2_title: "診療以外のトータルサポート",
+                service_2_desc: "交通、宿泊、専門通訳、K-ビューティーのアフターケア製品連携まで、全ての過程をサポートします。",
+                service_3_title: "オーダーメイド医療パッケージ",
+                service_3_desc: "整形、皮膚、健康診断など、お客様のニーズに合わせた最適な特化商品パッケージを提供します。",
+                consult_title: "1対1 リアルタイム専門相談 (安全チャット)",
+                consult_desc: "ご不明な点はお問い合わせください。専門のコーディネーターが迅速かつ正確にお答えします。",
+                send_button: "送信",
+                placeholder_input: "メッセージを入力してください...",
+                user_id_label: "現在のユーザーID:",
+                language_switcher: "言語選択",
+                cta_consult_button: "1対1相談を申し込む",
+                chat_empty_message: "下にメッセージを入力して相談を開始してください。",
+                loading_auth_message: "認証中です。しばらくお待ちください。",
+                footer_copyright: "&copy; 2024 K-TOTAL CARE Platform. All rights reserved. | Powered by TAELYN MED, LCS Partners, UNICORE Indonesia.",
+                footer_address_prefix: "プラットフォームアドレス:",
+                // 태린메드 사업 개요 (NEW)
+                biz_overview_title: "㈱TAELYN MED 事業概要およびビジョン",
+                biz_overview_p1: "㈱TAELYN MEDは、外国人患者の誘致および管理のために設立された専門法人です。LCS Partners、UNICOREインドネシア法人との共同事業を通じて、アジア全域の患者を国内の優れた医療サービスに繋ぐ架け橋の役割を果たしています。ITプラットフォームを基盤とした体系的なトータルケアシステムを通じて、医療観光市場をリードすることが私たちのビジョンです。",
+                market_title: "主要ターゲット市場",
+                market_1: "インドネシア: 現地法人(PT UNICORE BIZPAY INDONESIA)を通じた市場集中および拠点確保",
+                market_2: "ベトナム/タイ: 現地エージェンシーおよび旅行会社との提携による事業拡大",
+                market_3: "中国: 大手旅行会社との戦略的提携による市場進出および安定化",
+                market_4: "米国: 長期的に事業領域を拡大し、グローバル市場へ進出",
+                service_main_title: "主要サービス",
+                service_main: "ITプラットフォームを基盤としたリアルタイム相談、病院予約およびスケジュール管理、通訳・宿泊・交通連携サービスなど、患者の全行程を担う「トータルケアサービス」を提供します。",
+                // 태린메드 고객 신뢰 섹션 (기존)
+                trust_title: "㈱TAELYN MED 顧客信頼詳細案内",
+                trust_desc: "K-TOTAL CARE プラットフォーム運営会社である㈱TAELYN MED は、外国人患者誘致登録医療機関および専門機関との公式提携を通じて、お客様の安全と信頼を最優先にしています。以下の提携状況をご確認いただけます。",
+                trust_hospital_title: "公式提携病院および専門機関",
+                trust_hospital_list: [
+                    "Dojaki クリニック (皮膚、整形)",
+                    "One Day 歯科 (歯科診療)",
+                    "Haneul 眼科 (眼科診療)",
+                    "A 病院 (総合健診)",
+                    "B 整形外科 (整形手術)",
+                    "C 皮膚科 (皮膚/美容)",
+                    "D 歯科 (歯科矯正)",
+                    "E 漢方医院 (漢方診療)",
+                    "F 健康診断センター (総合健康診断)"
+                ],
+                trust_license_title: "主要登録および認証状況",
+                trust_license_1: "外国人患者誘致業 正式登録 (保健福祉部)",
+                trust_license_2: "ITプラットフォーム基盤の医療観光トータルケアサービス提供",
+                trust_license_3: "海外現地法人 (PT UNICORE BIZPAY INDONESIA)との公式パートナーシップ",
             }
         };
 
-        // ==============================================
-        // 2. UI Elements
-        // ==============================================
-        const authStatusEl = document.getElementById('auth-status');
-        const inquiryFormEl = document.getElementById('inquiry-form');
-        const inquiryListEl = document.getElementById('inquiry-list');
-        const submitButton = document.getElementById('submit-button');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        const loadingIndicatorTextTarget = document.getElementById('loading-indicator-text-target'); 
-        const noDataMessage = document.getElementById('no-data-message');
-        const toastEl = document.getElementById('toast-message');
-        const langToggleButton = document.getElementById('lang-toggle-button');
-        const navButtons = document.querySelectorAll('.nav-button');
-        const partnerListContainer = document.getElementById('partner-list-container');
-        const viewContainers = document.querySelectorAll('.view-container');
-        
+        let currentLang = 'ko';
 
-        // ==============================================
-        // 3. Language & View Management Functions
-        // ==============================================
-
-        /**
-         * Update all static text in the UI based on the current language (L10n).
-         * NOTE: This function handles L10n (hardcoded localization) and is independent of Google Translate.
-         */
-        function updateUIforLanguage() {
-            const langData = L10n[currentLang];
-            
-            // Header
-            document.getElementById('app-title').textContent = langData['app-title'];
-            langToggleButton.textContent = currentLang === 'ko' ? 'EN' : 'KO';
-
-            // Navigation
-            navButtons.forEach(button => {
-                const viewName = button.getAttribute('data-view');
-                button.textContent = langData[`nav-${viewName}`];
-            });
-
-            // Landing View
-            document.getElementById('landing-title').textContent = langData['landing-title'];
-            document.getElementById('landing-subtitle').textContent = langData['landing-subtitle'];
-            document.getElementById('landing-card1-title').textContent = langData['landing-card1-title'];
-            document.getElementById('landing-card1-text').textContent = langData['landing-card1-text'];
-            document.getElementById('landing-card2-title').textContent = langData['landing-card2-title'];
-            document.getElementById('landing-card2-text').textContent = langData['landing-card2-text'];
-            document.getElementById('landing-card3-title').textContent = langData['landing-card3-title'];
-            document.getElementById('landing-card3-text').textContent = langData['landing-card3-text'];
-            document.getElementById('landing-cta').textContent = langData['landing-cta'];
-
-            // Company View
-            document.getElementById('company-title').textContent = langData['company-title'];
-            document.getElementById('company-section1-title').textContent = langData['company-section1-title'];
-            document.getElementById('company-section1-text').textContent = langData['company-section1-text'];
-            document.getElementById('company-section2-title').textContent = langData['company-section2-title'];
-            // Update list items for company view
-            const ulEl = document.getElementById('company-section2-list');
-            ulEl.innerHTML = langData['company-section2-list'].map(item => `<li>${item}</li>`).join('');
-            document.getElementById('company-section3-title').textContent = langData['company-section3-title'];
-            document.getElementById('company-section3-text').textContent = langData['company-section3-text'];
-
-            // Partners View
-            document.getElementById('partners-title').textContent = langData['partners-title'];
-            document.getElementById('partners-description').textContent = langData['partners-description'];
-            renderPartnerList(); // Re-render partner list to localize mock data
-
-            // Inquiry View
-            document.getElementById('inquiry-form-title').textContent = langData['inquiry-form-title'] + (currentLang === 'en' ? ' (Inquiry)' : ' (상담)');
-            document.getElementById('inquiry-form-description').textContent = langData['inquiry-form-description'];
-            document.getElementById('label-name').textContent = langData['label-name'] + (currentLang === 'en' ? ' (Name)' : '');
-            document.getElementById('label-country').textContent = langData['label-country'] + (currentLang === 'en' ? ' (Country)' : '');
-            document.getElementById('label-treatment').textContent = langData['label-treatment'] + (currentLang === 'en' ? ' (Treatment Type)' : '');
-            document.getElementById('label-message').textContent = langData['label-message'] + (currentLang === 'en' ? ' (Message)' : '');
-            submitButton.textContent = submitButton.disabled ? langData['inquiry-submit-loading'] : langData['inquiry-submit-button-ready'];
-            document.getElementById('inquiry-list-title').textContent = langData['inquiry-list-title'] + (currentLang === 'en' ? ' (Live Inquiry List)' : ' (현황)');
-            
-            if (loadingIndicatorTextTarget) {
-                loadingIndicatorTextTarget.textContent = langData['loading-indicator-text'];
-            }
-            
-            noDataMessage.textContent = langData['no-data-message'];
+        // 새로운 헬퍼 함수: 다른 스크립트 블록(module)에서 번역 텍스트를 가져오기 위해 전역으로 노출합니다.
+        window.getL10nText = function(key) {
+            return translations[currentLang]?.[key] || `[Translation Error: ${key}]`;
         }
 
-        /**
-         * Change the active view displayed in the main section.
-         * @param {string} viewId - The ID of the view container (e.g., 'landing', 'inquiry').
-         */
-        function changeView(viewId) {
-            viewContainers.forEach(container => {
-                container.style.display = 'none';
-            });
-            document.getElementById(viewId + '-view').style.display = 'block';
+        // 제휴 병원 리스트를 동적으로 렌더링하는 함수
+        function renderPartnerList() {
+            const listElement = document.getElementById('partner-hospital-list');
+            if (!listElement) return;
 
-            navButtons.forEach(button => {
-                const isActive = button.getAttribute('data-view') === viewId;
-                if (isActive) {
-                    button.classList.add('bg-blue-600', 'text-white');
-                    button.classList.remove('text-gray-700', 'hover:bg-gray-100');
-                } else {
-                    button.classList.remove('bg-blue-600', 'text-white');
-                    button.classList.add('text-gray-700', 'hover:bg-gray-100');
+            const listData = translations[currentLang]?.trust_hospital_list || [];
+            listElement.innerHTML = ''; // Clear existing list
+
+            listData.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center space-x-2 text-gray-700 hover:text-indigo-600 transition duration-150';
+                li.innerHTML = `<i class="fas fa-check-circle text-indigo-500 text-sm"></i> <span>${item}</span>`;
+                listElement.appendChild(li);
+            });
+        }
+
+
+        function updateTexts() {
+            const t = translations[currentLang];
+            document.querySelectorAll('[data-l10n-key]').forEach(el => {
+                const key = el.getAttribute('data-l10n-key');
+                if (t[key]) {
+                    // Check if the element is an input/textarea (like chat-input)
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = t[key];
+                    } else if (key === 'footer_copyright') {
+                        // HTML content for copyright
+                        el.innerHTML = t[key];
+                    } else if (key === 'footer_address_prefix') {
+                        // Address prefix
+                        el.textContent = t[key];
+                    }
+                     else {
+                        // For regular elements (div, span, button, a)
+                        el.textContent = t[key];
+                    }
                 }
             });
             
-            // Re-render inquiries when switching to the inquiry view
-            if (viewId === 'inquiry' && isAuthReady) {
-                loadInquiries();
-            }
-        }
-        
-        /**
-         * Toggles the localized content language between Korean and English.
-         */
-        function toggleLanguage() {
-            currentLang = currentLang === 'ko' ? 'en' : 'ko';
-            updateUIforLanguage();
-        }
-
-        // ==============================================
-        // 4. Partner List Mock Renderer
-        // ==============================================
-        function renderPartnerList() {
-            const partners = L10n[currentLang]['partners-mock-data'];
-            const fieldLabel = L10n[currentLang]['field-label'];
-            const specialtyLabel = L10n[currentLang]['specialty-label'];
-            
-            let html = partners.map(partner => `
-                <div class="p-5 border border-gray-100 rounded-xl shadow-md bg-white hover:shadow-lg transition duration-200">
-                    <h3 class="text-lg font-bold text-blue-600 mb-2">${partner.name}</h3>
-                    <div class="space-y-1 text-sm">
-                        <p class="text-gray-600"><span class="font-medium text-gray-800">${fieldLabel}:</span> ${partner.field}</p>
-                        <p class="text-gray-500"><span class="font-medium text-gray-800">${specialtyLabel}:</span> ${partner.specialty}</p>
-                    </div>
-                </div>
-            `).join('');
-            partnerListContainer.innerHTML = html;
-        }
-
-        // ==============================================
-        // 5. Firebase & Core Logic (Modified)
-        // ==============================================
-        
-        /**
-         * Custom toast message display (replacing alert/confirm)
-         * @param {string} messageKey - The key of the message to display from L10n.
-         * @param {string} type - 'success' or 'error'.
-         */
-        function showToast(messageKey, type = 'success') {
-            const message = L10n[currentLang][messageKey] || messageKey;
-            toastEl.textContent = message;
-            toastEl.className = `fixed bottom-5 right-5 p-3 rounded-lg shadow-xl transition-opacity duration-300 opacity-100`;
-            
-            if (type === 'success') {
-                toastEl.classList.add('bg-green-500', 'text-white');
-                toastEl.classList.remove('bg-red-600');
-            } else if (type === 'error') {
-                toastEl.classList.add('bg-red-600', 'text-white');
-                toastEl.classList.remove('bg-green-500');
-            }
-
-            setTimeout(() => {
-                toastEl.classList.remove('opacity-100');
-                toastEl.classList.add('opacity-0');
-            }, 3000);
-        }
-
-        /**
-         * Firebase 초기화 및 인증 처리
-         */
-        async function initFirebase() {
-            if (Object.keys(firebaseConfig).length === 0) {
-                authStatusEl.textContent = L10n[currentLang]['auth-status-error'];
-                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
-                console.error("Firebase config is empty. Cannot initialize.");
-                return;
-            }
-
-            try {
-                setLogLevel('error'); // Reduced logging level
+            // 언어 전환 시 빈 채팅창 메시지 및 파트너 리스트도 업데이트
+            const chatMessagesDiv = document.getElementById('chat-messages');
+            if (chatMessagesDiv && chatMessagesDiv.children.length === 1 && 
+                chatMessagesDiv.children[0].textContent.includes(translations['ko']['chat_empty_message'].substring(0, 5))) {
                 
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                authStatusEl.textContent = L10n[currentLang]['auth-status-waiting'];
+                const emptyMessageText = window.getL10nText('chat_empty_message');
+                chatMessagesDiv.innerHTML = `<div class="p-4 text-center text-gray-400">${emptyMessageText}</div>`;
+            }
+            
+            // 파트너 리스트 업데이트 호출
+            renderPartnerList(); 
 
-                // 인증 상태 변경 리스너 설정
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        authStatusEl.textContent = `User ID: ${userId}`;
-                        authStatusEl.classList.replace('bg-blue-50', 'bg-green-100');
-                        isAuthReady = true;
-                        
-                        // Load inquiries only if on the inquiry view
-                        if (document.getElementById('inquiry-view').style.display === 'block') {
-                            loadInquiries();
-                        }
-                    } else {
-                        // 인증 토큰이 없는 경우 익명 로그인 시도
-                        if (initialAuthToken) {
-                            // Custom token login
-                            signInWithCustomToken(auth, initialAuthToken).catch(error => {
-                                console.error("Custom token sign-in failed:", error);
-                                signInAnonymously(auth).catch(err => {
-                                    console.error("Anonymous sign-in failed:", err);
-                                    authStatusEl.textContent = L10n[currentLang]['auth-status-failed'];
-                                    authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
-                                });
-                            });
-                        } else {
-                            // Anonymous login
-                            signInAnonymously(auth).catch(error => {
-                                console.error("Anonymous sign-in failed:", error);
-                                authStatusEl.textContent = L10n[currentLang]['auth-status-failed'];
-                                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
-                            });
-                        }
+
+            // Update language switcher appearance for all buttons
+            SUPPORTED_LANGS.forEach(lang => {
+                const button = document.getElementById(`lang-${lang}`);
+                if (button) {
+                    button.classList.toggle('bg-gray-700', currentLang === lang);
+                    button.classList.toggle('text-white', currentLang === lang);
+                    button.classList.toggle('bg-gray-200', currentLang !== lang);
+                }
+            });
+        }
+
+        function switchLanguage(lang) {
+            currentLang = lang;
+            updateTexts();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial language to Korean
+            switchLanguage('ko');
+
+            // Attach event listeners to all language buttons
+            SUPPORTED_LANGS.forEach(lang => {
+                const button = document.getElementById(`lang-${lang}`);
+                if (button) {
+                    button.addEventListener('click', () => switchLanguage(lang));
+                }
+            });
+
+            // Attach event listener for chat input (Enter key)
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        window.sendMessage();
                     }
                 });
-            } catch (error) {
-                console.error("Firebase initialization failed:", error);
-                showToast('auth-status-error', 'error');
-                authStatusEl.textContent = L10n[currentLang]['auth-status-error'];
-                authStatusEl.classList.replace('bg-blue-50', 'bg-red-100');
             }
-        }
-
-        /**
-         * 문의 사항을 Firestore에 저장
-         */
-        async function submitInquiry(event) {
-            event.preventDefault();
-
-            if (!isAuthReady || !userId || !db) {
-                showToast('toast-system-ready', 'error');
-                return;
-            }
-
-            const name = document.getElementById('name').value;
-            const country = document.getElementById('country').value;
-            const treatment = document.getElementById('treatment').value;
-            const message = document.getElementById('message').value;
-
-            if (!name || !country || !treatment || !message) {
-                showToast('toast-empty', 'error');
-                return;
-            }
-
-            submitButton.disabled = true;
-            submitButton.textContent = L10n[currentLang]['inquiry-submit-loading'];
-
-            // Firestore 보안 규칙에 따라 /artifacts/{appId}/public/data/inquiries 경로 사용
-            const inquiryCollectionPath = `artifacts/${appId}/public/data/inquiries`;
-
-            try {
-                await addDoc(collection(db, inquiryCollectionPath), {
-                    userId: userId,
-                    name: name,
-                    country: country,
-                    treatment: treatment,
-                    message: message,
-                    timestamp: serverTimestamp()
-                });
-
-                showToast('toast-success');
-                inquiryFormEl.reset(); // 폼 초기화
-
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showToast('toast-fail', 'error');
-            } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = L10n[currentLang]['inquiry-submit-button-ready'];
-            }
-        }
-
-        /**
-         * 실시간 문의 리스트 로드 및 표시 (onSnapshot 사용)
-         */
-        function loadInquiries() {
-            if (!isAuthReady || !db) return;
-
-            // Firestore 보안 규칙에 따라 /artifacts/{appId}/public/data/inquiries 경로 사용
-            const inquiryCollectionPath = `artifacts/${appId}/public/data/inquiries`;
-            
-            // NOTE: orderBy를 사용하면 index 오류가 발생할 수 있으므로, 일단은 client-side sorting을 위해 
-            // 쿼리에서 orderBy를 제거하고 모든 문서를 가져옵니다.
-            const q = query(collection(db, inquiryCollectionPath)); 
-            
-            loadingIndicator.classList.remove('hidden');
-
-            onSnapshot(q, (snapshot) => {
-                loadingIndicator.classList.add('hidden');
-                const langData = L10n[currentLang];
-                
-                // 1. Snapshot 데이터를 배열로 변환 및 클라이언트 측에서 시간순으로 정렬
-                let inquiries = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    // Firestore timestamp는 toDate()로 변환 가능
-                    const timestamp = data.timestamp ? data.timestamp.toDate().getTime() : 0;
-                    inquiries.push({ ...data, id: doc.id, timestamp: timestamp, firestoreDate: data.timestamp });
-                });
-
-                // 내림차순 (최신순) 정렬: timestamp가 클수록 최신
-                inquiries.sort((a, b) => b.timestamp - a.timestamp);
-
-                // 2. HTML 렌더링
-                let html = '';
-                inquiries.forEach((data) => {
-                    // Date localization depends on the user's browser locale, but we can localize the other texts.
-                    const date = data.firestoreDate ? new Date(data.firestoreDate.toDate()).toLocaleDateString(currentLang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : langData['inquiry-date-default'];
-                    
-                    // Highlight the item if it was submitted by the current user
-                    const isCurrentUser = data.userId === userId;
-                    const cardClass = isCurrentUser ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200';
-                    const userLabel = isCurrentUser ? `<span class="text-blue-600 font-bold ml-1">${langData['inquiry-user-label']}</span>` : '';
-
-                    // Simple mock localization for fields (in a real app, data itself would be stored in the patient's language)
-                    const countryDisplay = currentLang === 'ko' ? data.country : data.country.replace('인도네시아', 'Indonesia').replace('베트남', 'Vietnam').replace('중국', 'China').replace('미국', 'USA').replace('기타', 'Other');
-                    const treatmentDisplay = currentLang === 'ko' ? data.treatment : data.treatment.replace('미용/성형외과', 'Plastic Surgery').replace('피부과', 'Dermatology').replace('정밀 건강 검진', 'Health Checkup').replace('중증 질환 (암, 척추 등)', 'Serious Illness').replace('치과/안과', 'Dental/Ophthalmology');
-
-                    html += `
-                        <div class="p-4 border rounded-lg shadow-sm ${cardClass}">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="font-semibold text-gray-800">${data.name} (${countryDisplay}) ${userLabel}</span>
-                                <span class="text-xs text-gray-500">${date}</span>
-                            </div>
-                            <div class="mb-2">
-                                <span class="inline-block px-2 py-0.5 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">${treatmentDisplay}</span>
-                            </div>
-                            <p class="text-sm text-gray-600 overflow-hidden break-words whitespace-pre-wrap">${data.message}</p>
-                            <div class="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
-                                User ID: ${data.userId.substring(0, 8)}...
-                            </div>
-                        </div>
-                    `;
-                });
-
-                inquiryListEl.innerHTML = html;
-
-                if (snapshot.empty) {
-                    noDataMessage.classList.remove('hidden');
-                } else {
-                    noDataMessage.classList.add('hidden');
-                }
-            }, (error) => {
-                console.error("Error listening to inquiries:", error);
-                showToast('toast-fail', 'error');
-            });
-        }
-
-        // ==============================================
-        // 6. Initialization & Event Listeners
-        // ==============================================
-
-        window.addEventListener('load', () => {
-            initFirebase();
-            changeView('landing'); // Start on the landing page
-            updateUIforLanguage(); // Initial text setup
-            
-            // Set up Navigation listeners
-            navButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const viewId = button.getAttribute('data-view');
-                    changeView(viewId);
-                });
-            });
-
-            // Set up Language Toggle listener
-            langToggleButton.addEventListener('click', toggleLanguage);
         });
-
-        inquiryFormEl.addEventListener('submit', submitInquiry);
-        
-        // Expose function for external use (e.g., in HTML onclick)
-        window.changeView = changeView;
     </script>
+
+
+    <!-- Header Section -->
+    <header class="header-bg shadow-lg">
+        <div class="container-fluid flex justify-between items-center py-4">
+            <!-- Logo/Platform Name -->
+            <h1 class="text-3xl font-extrabold text-white">
+                <span data-l10n-key="platform_name">K-TOTAL CARE 플랫폼</span>
+            </h1>
+
+            <!-- Language Switcher & Google Translate (Updated with 7 languages) -->
+            <div class="flex items-center space-x-4">
+                <div class="flex space-x-1 p-1 bg-gray-500 rounded-full text-xs md:text-sm">
+                    <button id="lang-ko" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">KO</button>
+                    <button id="lang-en" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">EN</button>
+                    <button id="lang-zh" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">ZH</button>
+                    <button id="lang-id" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">ID</button>
+                    <button id="lang-th" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">TH</button>
+                    <button id="lang-vi" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">VI</button>
+                    <button id="lang-ja" class="px-2 py-1 font-semibold rounded-full hover:bg-gray-600 transition duration-150 text-white">JA</button>
+                </div>
+                <!-- Google Translate Dropdown -->
+                <div id="google_translate_element" class="text-white text-sm"></div>
+            </div>
+        </div>
+        <!-- Navigation -->
+        <nav class="container-fluid py-3">
+            <ul class="flex space-x-6 text-white font-medium">
+                <li><a href="#home" class="hover:text-red-300 transition duration-150" data-l10n-key="menu_home">홈</a></li>
+                <li><a href="#about" class="hover:text-red-300 transition duration-150" data-l10n-key="menu_about">플랫폼 소개</a></li>
+                <li><a href="#services" class="hover:text-red-300 transition duration-150" data-l10n-key="menu_services">주요 서비스</a></li>
+                <li><a href="#consultation" class="hover:text-red-300 transition duration-150" data-l10n-key="menu_consultation">1:1 상담</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="py-10">
+
+        <!-- Main Hero Section -->
+        <section id="home" class="container-fluid text-center mb-20">
+            <div class="bg-white p-12 rounded-2xl card">
+                <h2 class="text-5xl font-extrabold text-gray-800 mb-4" data-l10n-key="main_title">대한민국 의료 관광의 새로운 시작</h2>
+                <p class="text-xl text-gray-600 mb-8" data-l10n-key="main_description">ktotalcare.com은 인도네시아, 베트남 등 아시아 환자들을 한국의 우수한 의료기관과 연결하는 올인원(All-in-One) 토탈 케어 플랫폼입니다.</p>
+                <!-- CTA 버튼에 data-l10n-key 적용 -->
+                <a href="#consultation" class="cta-button inline-block px-8 py-3 text-lg font-bold text-white rounded-full shadow-lg">
+                    <i class="fas fa-comments mr-2"></i> <span data-l10n-key="cta_consult_button">1:1 상담 신청하기</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- Services Section -->
+        <section id="services" class="container-fluid mb-20">
+            <h3 class="text-4xl font-bold text-center text-gray-800 mb-12" data-l10n-key="section_title_1">왜 K-TOTAL CARE인가?</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Service Card 1 -->
+                <div class="card bg-white p-6 rounded-xl text-center">
+                    <div class="text-4xl text-indigo-600 mb-4"><i class="fas fa-shield-alt"></i></div>
+                    <h4 class="text-xl font-semibold mb-3" data-l10n-key="service_1_title">검증된 병원 네트워크</h4>
+                    <p class="text-gray-600" data-l10n-key="service_1_desc">의료해외진출법에 등록된 전문 의료기관만 제휴하여 안전하고 신뢰할 수 있는 서비스를 제공합니다.</p>
+                </div>
+                <!-- Service Card 2 -->
+                <div class="card bg-white p-6 rounded-xl text-center">
+                    <div class="text-4xl text-indigo-600 mb-4"><i class="fas fa-globe-americas"></i></div>
+                    <h4 class="text-xl font-semibold mb-3" data-l10n-key="service_2_title">진료 외 토탈 지원</h4>
+                    <p class="text-gray-600" data-l10n-key="service_2_desc">교통, 숙박, 전문 통역, K-뷰티 사후 관리 제품 연계까지 모든 과정을 지원합니다.</p>
+                </div>
+                <!-- Service Card 3 -->
+                <div class="card bg-white p-6 rounded-xl text-center">
+                    <div class="text-4xl text-indigo-600 mb-4"><i class="fas fa-heartbeat"></i></div>
+                    <h4 class="text-xl font-semibold mb-3" data-l10n-key="service_3_title">맞춤형 의료 패키지</h4>
+                    <p class="text-gray-600" data-l10n-key="service_3_desc">성형, 피부, 건강검진 등 고객의 니즈에 맞춘 최적의 특화 상품 패키지를 제공합니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Us Section: TAELYN MED Business Overview and Trust Details -->
+        <section id="about" class="container-fluid mb-20">
+            
+            <!-- TAELYN MED Business Overview Section (NEW) -->
+            <div class="bg-white p-6 md:p-10 rounded-2xl card mb-10 border-t-4 border-indigo-500">
+                <h3 class="text-3xl font-bold text-gray-800 mb-6" data-l10n-key="biz_overview_title">㈜태린메드 사업 개요 및 비전</h3>
+                <p class="text-lg text-gray-600 mb-8 leading-relaxed" data-l10n-key="biz_overview_p1">㈜태린메드는 외국인 환자 유치 및 관리를 위해 설립된 전문 법인입니다. 우리는 엘씨에스파트너스, 유니코아 인도네시아 법인과의 공동 사업을 통해 아시아 전역의 환자들에게 국내의 우수한 의료 서비스를 연결하는 교두보 역할을 수행하고 있습니다. IT 플랫폼 기반의 체계적인 토탈 케어 시스템을 통해 의료 관광 시장을 선도하는 것이 우리의 비전입니다.</p>
+
+                <!-- Key Target Markets -->
+                <div class="mb-8">
+                    <h4 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2" data-l10n-key="market_title">주요 타겟 시장</h4>
+                    <ul class="space-y-3 text-gray-700 text-base">
+                        <li class="flex items-start space-x-3"><i class="fas fa-map-marker-alt text-red-500 mt-1 flex-shrink-0"></i> <span data-l10n-key="market_1">인도네시아: 현지 법인(PT UNICORE BIZPAY INDONESIA)을 통한 시장 집중 및 거점 확보</span></li>
+                        <li class="flex items-start space-x-3"><i class="fas fa-map-marker-alt text-red-500 mt-1 flex-shrink-0"></i> <span data-l10n-key="market_2">베트남/태국: 현지 에이전시 및 여행사와의 제휴를 통한 사업 확장</span></li>
+                        <li class="flex items-start space-x-3"><i class="fas fa-map-marker-alt text-red-500 mt-1 flex-shrink-0"></i> <span data-l10n-key="market_3">중국: 대형 여행사와의 전략적 제휴를 통한 시장 진출 및 안정화</span></li>
+                        <li class="flex items-start space-x-3"><i class="fas fa-map-marker-alt text-red-500 mt-1 flex-shrink-0"></i> <span data-l10n-key="market_4">미국: 장기적으로 사업 영역을 확장하여 글로벌 시장 진출</span></li>
+                    </ul>
+                </div>
+
+                <!-- Main Services Offered -->
+                <div>
+                    <h4 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2" data-l10n-key="service_main_title">주요 서비스</h4>
+                    <p class="text-gray-700 leading-relaxed text-base" data-l10n-key="service_main">IT 플랫폼 기반의 실시간 상담, 병원 예약 및 스케줄 관리, 통역/숙소/교통 연계 서비스 등 환자의 전 여정을 책임지는 '토탈 케어 서비스'를 제공합니다.</p>
+                </div>
+            </div>
+
+            <!-- TAELYN MED Trust Section (Existing Section - Modified styling for distinction) -->
+            <div class="bg-white p-6 md:p-10 rounded-2xl card border-t-4 border-green-500">
+                <h3 class="text-3xl font-bold text-gray-800 mb-4" data-l10n-key="trust_title">주식회사 태린메드 (TAELYN MED) 고객 신뢰 상세 안내</h3>
+                <p class="text-gray-600 mb-8 leading-relaxed" data-l10n-key="trust_desc">K-TOTAL CARE 플랫폼 운영사인 (주)태린메드는 외국인환자유치 등록 의료기관 및 전문 기관과의 공식 제휴를 통해 고객의 안전과 신뢰를 최우선으로 합니다. 아래 제휴 현황을 확인하실 수 있습니다.</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <!-- 제휴 병원 리스트 -->
+                    <div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2" data-l10n-key="trust_hospital_title">공식 제휴 병원 및 전문기관</h4>
+                        <ul id="partner-hospital-list" class="partner-list space-y-2">
+                            <!-- JS에 의해 동적으로 채워집니다 -->
+                        </ul>
+                    </div>
+
+                    <!-- 등록 및 인증 현황 -->
+                    <div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2" data-l10n-key="trust_license_title">주요 등록 및 인증 현황</h4>
+                        <ul class="space-y-3">
+                            <li class="flex items-start space-x-3 text-gray-700">
+                                <i class="fas fa-certificate text-green-500 mt-1 flex-shrink-0"></i>
+                                <span data-l10n-key="trust_license_1">외국인환자유치업 정식 등록 (보건복지부)</span>
+                            </li>
+                            <li class="flex items-start space-x-3 text-gray-700">
+                                <i class="fas fa-laptop-medical text-green-500 mt-1 flex-shrink-0"></i>
+                                <span data-l10n-key="trust_license_2">IT 플랫폼 기반 의료 관광 토탈 케어 서비스 제공</span>
+                            </li>
+                            <li class="flex items-start space-x-3 text-gray-700">
+                                <i class="fas fa-hands-helping text-green-500 mt-1 flex-shrink-0"></i>
+                                <span data-l10n-key="trust_license_3">해외 현지 법인 (PT UNICORE BIZPAY INDONESIA)과의 공식 파트너십</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        
+        <!-- 1:1 Consultation Section (Chat App) -->
+        <section id="consultation" class="container-fluid">
+            <div class="bg-white p-6 md:p-10 rounded-2xl card">
+                <h3 class="text-3xl font-bold text-gray-800 mb-3" data-l10n-key="consult_title">1:1 실시간 전문 상담 (Secure Chat)</h3>
+                <p class="text-gray-600 mb-6" data-l10n-key="consult_desc">궁금한 점을 문의하세요. 전문 코디네이터가 신속하고 정확하게 답변해 드립니다.</p>
+                
+                <div class="flex flex-col h-[500px] bg-gray-50 rounded-lg border border-gray-200">
+                    <!-- Chat Messages Area -->
+                    <div id="chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4">
+                        <!-- 이 부분은 JS에 의해 동적으로 채워집니다. -->
+                    </div>
+                    
+                    <!-- Chat Input Area -->
+                    <div class="p-4 border-t border-gray-200 flex items-center bg-white">
+                        <!-- data-l10n-key를 사용하여 placeholder 번역 -->
+                        <textarea id="chat-input" rows="1" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-hidden" data-l10n-key="placeholder_input"></textarea>
+                        <button onclick="sendMessage()" class="cta-button ml-3 px-5 py-2 rounded-lg text-white font-semibold">
+                            <span data-l10n-key="send_button">전송</span> <i class="fas fa-paper-plane ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- User ID Display (for debugging and identification) -->
+                <div class="text-xs text-gray-500 mt-4">
+                    <span data-l10n-key="user_id_label">현재 사용자 ID:</span> <span id="user-id-display" class="font-mono text-gray-700 break-all">ID 로딩 중...</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="header-bg py-6 mt-10">
+        <div class="container-fluid text-center text-gray-400 text-sm">
+            <!-- data-l10n-key를 사용하여 저작권 및 주소 접두사 번역 -->
+            <p data-l10n-key="footer_copyright" class="mb-1">&copy; 2024 K-TOTAL CARE Platform. All rights reserved. | Powered by TAELYN MED, LCS Partners, UNICORE Indonesia.</p>
+            <!-- 주소는 변하지 않으므로 접두사만 번역 처리하고 주소는 고정 -->
+            <p class="mt-2">
+                <span data-l10n-key="footer_address_prefix">플랫폼 주소:</span>
+                <span class="font-mono text-gray-300">https://chespro-director.github.io/ktotalcare/</span>
+            </p>
+        </div>
+    </footer>
+
 </body>
 </html>
