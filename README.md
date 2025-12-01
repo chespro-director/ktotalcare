@@ -264,7 +264,7 @@
         const PLATFORM_ADDRESS = "https://chespro-director.github.io/ktotalcare/";
         
         // Define all supported languages for easy iteration
-        const SUPPORTED_LANGS = ['ko', 'en', 'ch', 'ja', 'id', 'th', 'vi'];
+        const SUPPORTED_LANGS = ['ko', 'en', 'zn', 'ja', 'id', 'th', 'vi'];
 
         const translations = {
             'ko': {
